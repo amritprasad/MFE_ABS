@@ -5,6 +5,10 @@ Assignment 1
 
 # Imports
 import pandas as pd
+import os
+
+# Set options
+pd.set_option('display.max_columns', 10)
 # %%
 
 
@@ -34,3 +38,13 @@ def discount_fac(zero_df):
     Returns:
         pd.DataFrame containing discount factors
     """
+    return
+
+
+# %%
+# Load Data
+data_folder = 'Data'
+filename = '20040830_usd23_atm_caps_jan_2019_update2.xlsx'
+filepath = os.path.join('.', data_folder, filename)
+libor_df = pd.read_excel(filepath, sheet_name='usd23_libor_curve', skiprows=3,
+                         header=0, parse_dates=[0, 1]).dropna()
