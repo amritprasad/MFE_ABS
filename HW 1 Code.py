@@ -14,6 +14,11 @@ import library as lib
 # Set options
 pd.set_option('display.max_columns', 10)
 # %%
+# Verify that python version used is 3.7+
+py_ver = !python --version
+if py_ver[0].split(' ')[-1][:3] != '3.7':
+    raise OSError('Please install Python Version 3.7+')
+# %%
 # Problem 1
 # Load LIBOR Data
 data_folder = 'Data'
