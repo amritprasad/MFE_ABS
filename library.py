@@ -42,7 +42,7 @@ def discount_fac(_zero_df):
         _zero_df (pd.DataFrame)
 
     Returns:
-        pd.DataFrame containing discount factors between index_t and index_min.
+        pd.DataFrame containing discount factors between index_t and index_0.
         Index is DATE and DISCOUNT contains discount factors
     """
     # Create deep copy to avoid modifying the original df passed
@@ -65,7 +65,8 @@ def fwd_rates(_discount_df):
         _discount_df (pd.DataFrame)
 
     Returns:
-        pd.DataFrame containing the fwd rates between index_t and index_t+1
+        pd.DataFrame containing the fwd rates between index_t and index_t+1.
+        Index is DATE and FWD_RATE contains the relevant fwd rate
     """
     # Create deep copy to avoid modifying the original df passed
     discount_df = _discount_df.copy()
