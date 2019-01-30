@@ -29,6 +29,9 @@ def t_dattime(d0, d1, convention):
     elif convention == 'ACTby360':
         days_ACT = (d1 - d0).days
         return days_ACT/360
+    elif convention == 'ACTby365':
+        days_ACT = (d1 - d0).days
+        return days_ACT/365
     else:
         raise ValueError('%s convention has not been implemented' % convention)
 
@@ -79,3 +82,32 @@ def fwd_rates(_discount_df):
         tau_i.values, axis=0)
     fwd_df.columns = ['FWD_RATE']
     return fwd_df
+
+
+def capswap_rates(_discount_df):
+    """
+    Function to calculate the cap swap rates given the discount_df
+
+    Args:
+        _discount_df (pd.DataFrame)
+
+    Returns:
+        pd.DataFrame containing swap rates of the cap
+    """
+    discount_df = _discount_df.copy()
+    # The forward rates are paid at the end of each period. So shift the fwd_df
+    # by 1 index
+    fwd_df = fwd_rates(discount_df).shift(1)
+    mat_dates = discount_df.index.get_level_values('DATE')
+    T_i = np.vectorize(t_dattime)(mat_dates.min(), mat_dates, 'ACTby360')
+    tau_i = pd.Series(T_i).diff()[1:]
+    denom = tau_i.multiply(discount_df.reset_index()['DISCOUNT']).loc[2:]
+    numer = tau_i.multiply(discount_df.reset_index()['DISCOUNT']).multiply(
+            fwd_df.reset_index()['FWD_RATE']).loc[2:]
+    capswap_df = pd.DataFrame(np.cumsum(numer)/np.cumsum(denom),
+                              columns=['CAPSWAP'])
+    capswap_df.index = discount_df.index[2:]
+    capswap_df.dropna(inplace=True)
+    capswap_df.loc[discount_df.index[1]] = fwd_df['FWD_RATE'].iloc[1]
+    capswap_df.sort_index(inplace=True)
+    return capswap_df
