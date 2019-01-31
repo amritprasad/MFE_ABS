@@ -305,7 +305,7 @@ def inst_f(_discount_df, time_step, derivative):
                          columns=['INST_FWD_RATE'])
     # Interpolate linearly for all the intermediate time steps
     inst_fwd_df = f_M_t.resample(str(time_step)+'MS').interpolate(
-            method='linear')
+            method='index')
     # Calculate partial derivative wrt time if specified
     if derivative:
         spacing = np.vectorize(t_dattime)(inst_fwd_df.index.min(),
