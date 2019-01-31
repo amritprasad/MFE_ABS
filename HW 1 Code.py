@@ -61,4 +61,13 @@ capatmstrike_df = capswap_df.iloc[annual_idx]
 
 # Get good business days
 goodbday = capswap_df.index
-caplet_mat = libor_df['Caplet Accrual Expiry Date'].dropna()
+caplet_expiry = libor_df['Caplet Accrual Expiry Date'].dropna()[1:]
+swap_pay_dates = capswap_df.index
+# d) Get Black prices of the caps
+capval_df = pd.DataFrame(index=capatmstrike_df.index, columns=['BLACK', 'HW'])
+for i in range(15):
+    capval_df.loc[capval_df.index[i], 'BLACK'] = lib.black_price_caps(
+            settle_date, blackvol_df['FLAT_VOL'].iloc[i],
+            capatmstrike_df['CAPSWAP'].iloc[i],
+            caplet_expiry[:annual_idx[i]],
+            swap_pay_dates[:annual_idx[i]+1], discount_df, notional=1e2)

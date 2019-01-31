@@ -111,3 +111,50 @@ def capswap_rates(_discount_df):
     capswap_df.loc[discount_df.index[1]] = fwd_df['FWD_RATE'].iloc[1]
     capswap_df.sort_index(inplace=True)
     return capswap_df
+
+
+def black_price_caps(value_date, flat_vol, strike, caplet_expiry,
+                     swap_pay_dates, _discount_df, notional=1e7):
+    """
+    Function to derive the Black price of a cap given its valuation date,
+    flat vol, strike, expiry dates of the constituent caplets, pay dates of the
+    underlying swap and the discount_df
+
+    Args:
+        value_date (pd.Timestamp)
+
+        flat_vol (float)
+
+        strike (float)
+
+        caplet_expiry (iterable of dates)
+
+        swap_pay_dates (iterable of dates)
+
+        _discount_df (pd.DataFrame)
+
+        notional (float): default value given is 10 MM
+
+    Returns:
+        Black price of cap
+    """
+    from scipy.stats import norm
+    discount_df = _discount_df.copy()
+    # The forward rates are paid at the end of each period. So shift the fwd_df
+    # by 1 index. Keep only the swap_pay_dates and ignore the omitted caplet
+    fwd_df = fwd_rates(discount_df).shift(1).reindex(swap_pay_dates)[1:]
+    # Calculate tau_i
+    tau_i = np.vectorize(t_dattime)(swap_pay_dates[:-1], swap_pay_dates[1:],
+                                    'ACTby360')
+    # Calculate caplet attributes
+    caplet_t_i = np.vectorize(t_dattime)(value_date, caplet_expiry, 'ACTby365')
+    caplet_flat_vol = flat_vol*np.sqrt(caplet_t_i)
+    ln_fbyx = np.log(fwd_df/strike)
+    d1 = (ln_fbyx.values.ravel() + 0.5*caplet_flat_vol**2)/caplet_flat_vol
+    d2 = d1 - caplet_flat_vol
+    phi1 = norm.cdf(d1)
+    phi2 = norm.cdf(d2)
+    cashflows = notional*tau_i*(fwd_df.values.ravel()*phi1 - strike*phi2)
+    black_price = sum(discount_df.reindex(swap_pay_dates)[
+            1:].values.ravel()*cashflows)
+    return black_price
