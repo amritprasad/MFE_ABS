@@ -226,7 +226,7 @@ def loss_hw_black(params, black_prices, annual_idx, swap_pay_dates,
         notional (float): notional of the Black prices
 
     Returns:
-        kappa, sigma
+        squared difference in prices between Hull-White and Black
     """
     kappa, sigma = params
     error_str = "Number of Cap strikes and prices don't match"
@@ -268,7 +268,7 @@ def loss_black_hw(param, hw_price, caplet_expiry, swap_pay_dates,
         notional (float): notional of the Black prices
 
     Returns:
-        kappa, sigma
+        squared difference in prices between Hull-White and Black
     """
     flat_vol = param
     black_price_hwvol = black_price_caps(
