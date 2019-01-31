@@ -243,6 +243,43 @@ def loss_hw_black(params, black_prices, annual_idx, swap_pay_dates,
         return sum((hw_prices - black_prices)**2)
 
 
+def loss_black_hw(param, hw_price, caplet_expiry, swap_pay_dates,
+                  value_date, strike, discount_df, notional=1e7):
+    """
+    Function to calculate the difference in prices between the Hull-White model
+    and the Black model
+
+    Args:
+        param (float): flat_vol
+
+        hw_price (iterable): Hull-White cap price
+
+        annual_idx (iterable): contains cut-off index for caplet expiries and
+        swap pay dates
+
+        swap_pay_dates (iterable): contains the underlying swap dates
+
+        value_date (pd.Timestamp): valuation date
+
+        capatmstrike_df (pd.DataFrame): contains the strikes of the caps
+
+        discount_df (pd.DataFrame): contains the discount rates
+
+        notional (float): notional of the Black prices
+
+    Returns:
+        kappa, sigma
+    """
+    flat_vol = param
+    black_price_hwvol = black_price_caps(
+            value_date, flat_vol, strike, caplet_expiry, swap_pay_dates,
+            discount_df, notional=notional)
+    if np.isnan(black_price_hwvol):
+        return np.inf
+    else:
+        return (hw_price - black_price_hwvol)**2
+
+
 def inst_f(_discount_df, time_step, derivative):
     """
     Function to estimate the instantaneous forward rates

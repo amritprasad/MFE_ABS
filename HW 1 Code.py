@@ -123,3 +123,30 @@ plt.ylabel(r'$\theta (t)$')
 plt.savefig('./Plots/HW_1e_Theta.png')
 plt.show()
 # %%
+# f) Calibrate Hull-White flat vols
+hwvol_df = blackvol_df.copy()
+for i in range(hw_prices.size):
+    guess = hwvol_df['FLAT_VOL'].iloc[i]
+    eps = np.finfo(float).eps
+    bounds = ((eps, None),)
+    res = minimize(lib.loss_black_hw, guess, args=(
+            hw_prices[i], caplet_expiry[:annual_idx[i]],
+            swap_pay_dates[:annual_idx[i]+1], settle_date,
+            capatmstrike_df['CAPSWAP'].iloc[i], discount_df, 1e2),
+                   bounds=bounds)
+    hwvol_df.loc[hwvol_df.index[i], 'FLAT_VOL'] = res.x
+    if not res.x:
+        print(i)
+# Plot the vols
+plt.figure(figsize=(10, 8))
+plt.plot(blackvol_df['EXPIRY'], blackvol_df['FLAT_VOL'], marker='o',
+         color='black')
+plt.plot(hwvol_df['EXPIRY'], hwvol_df['FLAT_VOL'], marker='+',
+         color='red')
+plt.grid(True)
+plt.legend(['Black', 'Hull-White'])
+plt.title('Comparison between Black and Hull-White Cap Flat Vols')
+plt.xlabel('Cap Expiry')
+plt.ylabel('Flat Volatility')
+plt.savefig('./Plots/HW_1f_Flat_Vol_Comparison.png')
+plt.show()
