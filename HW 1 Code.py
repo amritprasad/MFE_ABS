@@ -108,3 +108,18 @@ if not os.path.exists('./Plots'):
     os.makedirs('./Plots')
 plt.savefig('./Plots/HW_1d_Price_Comparison.png')
 plt.show()
+# %%
+# e) Estimate θ(t)
+theta_df = lib.hw_theta(kappa, sigma, discount_df, settle_date)
+theta_df.to_csv('theta.csv')
+t = np.vectorize(lib.t_dattime)(settle_date, theta_df.index, 'ACTby365')
+# Plot θ(t)
+plt.figure(figsize=(10, 8))
+plt.plot(t, theta_df.values.ravel(), marker='o', color='black')
+plt.grid(True)
+plt.title('θ(t) vs t')
+plt.xlabel('Time (years)')
+plt.ylabel(r'$\theta (t)$')
+plt.savefig('./Plots/HW_1e_Theta.png')
+plt.show()
+# %%

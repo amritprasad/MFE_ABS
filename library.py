@@ -258,19 +258,17 @@ def inst_f(_discount_df, time_step, derivative):
         df containing instantaneous forward rates
     """
     discount_df = _discount_df.copy()
-    fwd_df = fwd_rates(discount_df)
     t_i = discount_df.index[1:]
     t_im1 = discount_df.index[:-1]
     delta_t = np.vectorize(t_dattime)(t_im1, t_i, 'ACTby365')
     Z_i = discount_df['DISCOUNT'][1:].values.ravel()
     Z_im1 = discount_df['DISCOUNT'][:-1].values.ravel()
     f_M_t = np.log(Z_im1/Z_i)/delta_t
-    f_M_t = pd.DataFrame(f_M_t, index=discount_df.index[1:],
+    f_M_t = pd.DataFrame(f_M_t, index=discount_df.index[:-1],
                          columns=['INST_FWD_RATE'])
-    f_M_t.loc[discount_df.index[0]] = fwd_df['FWD_RATE'].iloc[0]
-    # Interpolate using cubic splines for all the intermediate time steps
+    # Interpolate linearly for all the intermediate time steps
     inst_fwd_df = f_M_t.resample(str(time_step)+'MS').interpolate(
-            method='spline', order=3)
+            method='linear')
     # Calculate partial derivative wrt time if specified
     if derivative:
         spacing = np.vectorize(t_dattime)(inst_fwd_df.index.min(),
