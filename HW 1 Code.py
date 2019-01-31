@@ -50,7 +50,7 @@ blackvol_df = pd.read_excel(filepath, sheet_name='usd_atm_european_caps',
 blackvol_df.columns = ['EXPIRY', 'FLAT_VOL']
 blackvol_df['FLAT_VOL'] /= 100
 blackvol_df['EXPIRY'] = blackvol_df['EXPIRY'].str.replace('Yr', '').astype(int)
-# Calculate cap swap rates
+# Calculate cap ATM swap rates
 capswap_df = lib.capswap_rates(discount_df)
 # Get maturity dates of caps for whom the Black Flat Vol is provided
 settle_date = discount_df.index[0]
@@ -61,7 +61,6 @@ annual_idx = np.vectorize(capswap_df.index.get_loc)(capdates,
 # c) Get strikes for the annual caps
 capatmstrike_df = capswap_df.iloc[annual_idx]
 
-# Get good business days
 caplet_expiry = libor_df['Caplet Accrual Expiry Date'].dropna()[1:]
 swap_pay_dates = capswap_df.index
 # Get Black prices of the caps
