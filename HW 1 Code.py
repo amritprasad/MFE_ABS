@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 import os
 import sys
+from scipy.optimize import minimize
+import matplotlib.pyplot as plt
 
 # Import library
 import library as lib
@@ -60,14 +62,49 @@ annual_idx = np.vectorize(capswap_df.index.get_loc)(capdates,
 capatmstrike_df = capswap_df.iloc[annual_idx]
 
 # Get good business days
-goodbday = capswap_df.index
 caplet_expiry = libor_df['Caplet Accrual Expiry Date'].dropna()[1:]
 swap_pay_dates = capswap_df.index
-# d) Get Black prices of the caps
-capval_df = pd.DataFrame(index=capatmstrike_df.index, columns=['BLACK', 'HW'])
+# Get Black prices of the caps
+black_prices = np.zeros(15)
 for i in range(15):
-    capval_df.loc[capval_df.index[i], 'BLACK'] = lib.black_price_caps(
+    black_prices[i] = lib.black_price_caps(
             settle_date, blackvol_df['FLAT_VOL'].iloc[i],
             capatmstrike_df['CAPSWAP'].iloc[i],
             caplet_expiry[:annual_idx[i]],
             swap_pay_dates[:annual_idx[i]+1], discount_df, notional=1e2)
+
+# d) Calibrate Hull-White model using the Black implied cap prices
+guess = [0.1, 0.01]
+eps = np.finfo(float).eps
+bounds = ((eps, None), (eps, None))
+res = minimize(lib.loss_hw_black, guess, args=(
+        black_prices, annual_idx, swap_pay_dates, settle_date,
+        capatmstrike_df, discount_df, 1e2), bounds=bounds)
+if res.success:
+    kappa, sigma = res.x
+else:
+    raise ValueError("Optimizer didn't converge")
+
+# Get Hull-White cap prices
+hw_prices = np.zeros(black_prices.size)
+for i in range(hw_prices.size):
+    hw_prices[i] = lib.hullwhite_price_caps(
+            settle_date, sigma, kappa, capatmstrike_df['CAPSWAP'].iloc[i],
+            swap_pay_dates[:annual_idx[i]+1], discount_df,
+            notional=1e2)
+
+# Plot the Black Cap prices
+plt.figure(figsize=(10, 8))
+plt.plot(pd.Series(black_prices, index=blackvol_df['EXPIRY']), marker='o',
+         color='black')
+plt.plot(pd.Series(hw_prices, index=blackvol_df['EXPIRY']), marker='+',
+         color='red')
+plt.grid(True)
+plt.legend(['Black', 'Hull-White'])
+plt.title('Comparison between Black and Hull-White Cap Prices')
+plt.xlabel('Cap Expiry')
+plt.ylabel(r'$\$$ Amount per $\$100$ Notional')
+if not os.path.exists('./Plots'):
+    os.makedirs('./Plots')
+plt.savefig('./Plots/HW_1d_Price_Comparison.png')
+plt.show()
