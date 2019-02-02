@@ -40,7 +40,7 @@ def discount_fac(_zero_df):
     """
     Function to calculate the discount rates given the zero rates. Columns
     should be DATE and ZERO
-
+discount_fac
     Args:
         _zero_df (pd.DataFrame)
 
@@ -341,3 +341,60 @@ def hw_theta(kappa, sigma, _discount_df, start_date):
     theta_df = pd.DataFrame(theta_df, index=inst_fwd_df.index,
                             columns=['THETA'])
     return theta_df
+
+
+def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
+    """
+    Function to simulate interest rate
+
+    Args:
+        theta_df (pd.DataFRame): value of θ(t)
+        
+        kappa, sigma (float): Hull-White parameters
+
+    Returns:
+        df containing instantaneous interest rate
+    """
+    spot_simulate_df = theta_df.resample('1MS').first()*np.nan
+    spot_simulate_df = pd.DataFrame(index=spot_simulate_df.index, columns=range(1,m+1))
+    deltat = 0.25
+    if antithetic:
+        row, column = spot_simulate_df.shape
+        df_temp = pd.DataFrame(np.random.normal(size=(row, int(column/2))))
+        rand_norm = pd.concat([df_temp, -df_temp], axis=1)
+        rand_norm.index = spot_simulate_df.index
+        rand_norm.columns = spot_simulate_df.columns
+    else:
+        rand_norm = pd.DataFrame(np.random.normal(size=spot_simulate_df.shape), index=spot_simulate_df.index, columns=spot_simulate_df.columns)
+    spot_simulate_df.iloc[0] = r0
+    for i in range(1, len(spot_simulate_df)):
+        deltax = np.sqrt(deltat)*rand_norm.iloc[i]
+        deltar = (theta_df.iloc[i,0]-spot_simulate_df.iloc[i-1]*kappa)*deltat+sigma*deltax
+        spot_simulate_df.iloc[i] = spot_simulate_df.iloc[i-1]+deltar
+    spot_simulate_df.index = range(1, len(spot_simulate_df)+1)
+    return spot_simulate_df
+
+
+def mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=False):
+    r = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
+    r = r.iloc[:len(cf_bond)]
+    
+    price_dict = {}
+    for i in cf_bond.columns:
+        price_dict[i] = (cf_bond[i].T/(r.mul(r.index, axis=0)*0.25).applymap(np.exp).T).T.sum()
+    price_df = pd.DataFrame(price_dict)
+    if antithetic:
+        length = int(m/2)
+        for i in range(length):
+            price_df.loc[i+1] = (price_df.loc[i+1]+price_df.loc[i+1+length])/2
+        price_df = price_df.loc[range(1,length+1)]
+    return price_df
+
+def calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=True):
+    deltar = 0.0002
+    price_pos = mc_bond(m, cf_bond, theta_df, kappa, sigma, r0+deltar, antithetic).mean()
+    price = mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic).mean()
+    price_neg = mc_bond(m, cf_bond, theta_df, kappa, sigma, r0-deltar, antithetic).mean()
+    duration = (price_pos-price_neg)/price/2/deltar
+    convexity = (price_pos+price_neg-price*2)/price/deltar
+    return duration, convexity
