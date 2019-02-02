@@ -40,7 +40,7 @@ def discount_fac(_zero_df):
     """
     Function to calculate the discount rates given the zero rates. Columns
     should be DATE and ZERO
-discount_fac
+
     Args:
         _zero_df (pd.DataFrame)
 
@@ -349,7 +349,7 @@ def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
 
     Args:
         theta_df (pd.DataFRame): value of θ(t)
-        
+
         kappa, sigma (float): Hull-White parameters
 
     Returns:
@@ -378,7 +378,7 @@ def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
 def mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=False):
     r = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
     r = r.iloc[:len(cf_bond)]
-    
+
     price_dict = {}
     for i in cf_bond.columns:
         price_dict[i] = (cf_bond[i].T/(r.mul(r.index, axis=0)*0.25).applymap(np.exp).T).T.sum()
@@ -389,6 +389,7 @@ def mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=False):
             price_df.loc[i+1] = (price_df.loc[i+1]+price_df.loc[i+1+length])/2
         price_df = price_df.loc[range(1,length+1)]
     return price_df
+
 
 def calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=True):
     deltar = 0.0002
