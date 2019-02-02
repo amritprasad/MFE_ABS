@@ -229,7 +229,7 @@ for i in range(1,241):
     Tranche_dict['CZ'].loc[i,'Interest'] = CZ_interest.loc[i,'interest'] \
                                             - CZ_interest.loc[i,'accrued'] 
     
-#%%
+#%% Output Total cash flows for each Tranche
 CF_df = pd.DataFrame( np.zeros((240,8)), columns=list(Tranche_bal_dict.keys()) )
 
 for i in Tranche_bal_dict.keys():
