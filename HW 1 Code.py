@@ -185,15 +185,17 @@ plt.show()
 
 # %%
 # Problem 2
-df = pd.read_excel('/home/paul/Downloads/REMIC_Template New.xlsx', sheet_name='Pricing', header=4, index_col=0)
-cf_bond = df.iloc[:,:8]
+df = pd.read_excel('/home/paul/Downloads/REMIC_Template New.xlsx',
+                   sheet_name='Pricing', header=4, index_col=0)
+cf_bond = df.iloc[:, :8]
 
-m=10000
+m = 10000
 
 r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
-price_df_MC = lib.mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=True)
+price_df_MC = lib.mc_bond(m, cf_bond, theta_df, kappa, sigma, r0,
+                          antithetic=True)
 price_mean_MC = price_df_MC.mean()
 price_std_MC = price_df_MC.std()/np.sqrt(len(price_df_MC))
 
-duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=True)
-
+duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa,
+                                                  sigma, r0, antithetic=True)
