@@ -152,8 +152,7 @@ plt.show()
 
 # %%
 # Problem 2
-df = pd.read_excel('/home/paul/Downloads/REMIC_Template New.xlsx', sheet_name='Pricing', header=4, index_col=0)
-cf_bond = df.iloc[:,:8]
+cf_bond = pd.read_csv('./cf.csv', header=0, index_col=0)
 
 m=10000
 
@@ -164,3 +163,4 @@ price_std_MC = price_df_MC.std()/np.sqrt(len(price_df_MC))
 
 duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=True)
 
+oas_ser = lib.calc_OAS(cf_bond, zero_df)

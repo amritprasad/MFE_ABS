@@ -6,7 +6,18 @@ Library of functions
 # Imports
 import pandas as pd
 import numpy as np
+import scipy
 
+Tranche_bal_dict={
+'CG':74800000,
+'VE':5200000,
+'CM':14000000,
+'GZ':22000000,
+'TC':20000000,
+'CZ':24000000,
+'CA':32550000,
+'CY':13950000
+}
 
 def t_dattime(d0, d1, convention):
     """
@@ -379,9 +390,12 @@ def mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=False):
     r = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
     r = r.iloc[:len(cf_bond)]
     
+    R = (cf_bond.sum(1).T*((r/24).applymap(np.exp)-1).T).T
+    
     price_dict = {}
     for i in cf_bond.columns:
         price_dict[i] = (cf_bond[i].T/(r.mul(r.index, axis=0)*0.25).applymap(np.exp).T).T.sum()
+    price_dict['R'] = (R/(r.mul(r.index, axis=0)*0.25).applymap(np.exp)).sum()
     price_df = pd.DataFrame(price_dict)
     if antithetic:
         length = int(m/2)
@@ -398,3 +412,25 @@ def calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=T
     duration = (price_pos-price_neg)/price/2/deltar
     convexity = (price_pos+price_neg-price*2)/price/deltar
     return duration, convexity
+
+def calc_PV_diff(r, cf, zero_df, par):
+    _zero_df = zero_df.copy()
+    _zero_df['ZERO'] = _zero_df['ZERO']+r
+    discount_df = discount_fac(_zero_df)
+    discount_df.index = range(0, len(discount_df))
+    pv = (discount_df.iloc[:,0]*cf).sum()
+    #print(pv-par)
+    return pv-par
+
+def calc_OAS(cf_bond, zero_df):
+    r_dict = {}
+    _zero_df = zero_df.copy()
+    _zero_df.index = _zero_df['DATE']
+    _zero_df = _zero_df[['ZERO']]
+    _zero_df = _zero_df.resample('1MS').interpolate(method='index')
+    _zero_df['DATE'] = _zero_df.index
+    for column in cf_bond.columns:
+        r0 = 0
+        r_dict[column] = scipy.optimize.fsolve(calc_PV_diff, r0, args=(cf_bond[column], _zero_df, Tranche_bal_dict[column]))[0]
+    r_ser = pd.Series(r_dict, index=cf_bond.columns)
+    return r_ser
