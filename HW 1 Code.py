@@ -41,8 +41,30 @@ zero_df.loc[zero_df.index[-1], 'DATE'] = zero_df.loc[
 
 # a) Calculate discount rates
 discount_df = lib.discount_fac(zero_df)
+# Plot the discount rates
+plt.figure(figsize=(10, 8))
+plt.plot(discount_df, marker='o', color='black')
+plt.grid(True)
+plt.title('Discount Factors')
+plt.xlabel('Dates')
+plt.ylabel('Discount')
+if not os.path.exists('./Plots'):
+    os.makedirs('./Plots')
+plt.savefig('./Plots/HW_1a_Discount.png')
+plt.show()
 # b) Calculate quarterly-compounded forward rates between each maturity date
 fwd_df = lib.fwd_rates(discount_df)
+# Plot the forward rates
+plt.figure(figsize=(10, 8))
+plt.plot(fwd_df, marker='o', color='black')
+plt.grid(True)
+plt.title('Forward Rates')
+plt.xlabel('Dates')
+plt.ylabel('Fwd Rates')
+if not os.path.exists('./Plots'):
+    os.makedirs('./Plots')
+plt.savefig('./Plots/HW_1b_Fwd_Rates.png')
+plt.show()
 # %%
 # Load Flat Vol data
 blackvol_df = pd.read_excel(filepath, sheet_name='usd_atm_european_caps',
@@ -60,6 +82,17 @@ annual_idx = np.vectorize(capswap_df.index.get_loc)(capdates,
                                                     method='nearest')
 # c) Get strikes for the annual caps
 capatmstrike_df = capswap_df.iloc[annual_idx]
+# Plot the ATM cap strikes
+plt.figure(figsize=(10, 8))
+plt.plot(capatmstrike_df, marker='o', color='black')
+plt.grid(True)
+plt.title('ATM Cap Strikes')
+plt.xlabel('Dates')
+plt.ylabel('Cap Strikes')
+if not os.path.exists('./Plots'):
+    os.makedirs('./Plots')
+plt.savefig('./Plots/HW_1c_ATM_Cap_Strikes.png')
+plt.show()
 
 caplet_expiry = libor_df['Caplet Accrual Expiry Date'].dropna()[1:]
 swap_pay_dates = capswap_df.index
@@ -153,14 +186,19 @@ plt.show()
 # %%
 # Problem 2
 cf_bond = pd.read_csv('./cf.csv', header=0, index_col=0)
+df = pd.read_excel('/home/paul/Downloads/REMIC_Template New.xlsx',
+                   sheet_name='Pricing', header=4, index_col=0)
+cf_bond = df.iloc[:, :8]
 
-m=10000
+m = 10000
 
 r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
-price_df_MC = lib.mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=True)
+price_df_MC = lib.mc_bond(m, cf_bond, theta_df, kappa, sigma, r0,
+                          antithetic=True)
 price_mean_MC = price_df_MC.mean()
 price_std_MC = price_df_MC.std()/np.sqrt(len(price_df_MC))
 
 duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=True)
 
 oas_ser = lib.calc_OAS(cf_bond, zero_df)
+
