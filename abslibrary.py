@@ -8,16 +8,17 @@ import pandas as pd
 import numpy as np
 import scipy
 
-Tranche_bal_dict={
-'CG':74800000,
-'VE':5200000,
-'CM':14000000,
-'GZ':22000000,
-'TC':20000000,
-'CZ':24000000,
-'CA':32550000,
-'CY':13950000
-}
+Tranche_bal_dict = {
+                    'CG': 74800000,
+                    'VE': 5200000,
+                    'CM': 14000000,
+                    'GZ': 22000000,
+                    'TC': 20000000,
+                    'CZ': 24000000,
+                    'CA': 32550000,
+                    'CY': 13950000
+                   }
+
 
 def t_dattime(d0, d1, convention):
     """
@@ -393,11 +394,11 @@ def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
 def mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=False):
     r = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic).astype(float)
     r = r.iloc[:len(cf_bond)]
-    
+
     R = (cf_bond.sum(1).T*(np.exp(r/24)-1).T).T
-    
+
     r_cum = r.cumsum()
-    
+
     price_dict = {}
     for i in cf_bond.columns:
         price_dict[i] = (cf_bond[i].T/np.exp(r_cum/12).T).T.sum()
@@ -424,14 +425,16 @@ def calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0,
     convexity = (price_pos+price_neg-price*2)/price/deltar
     return duration, convexity
 
+
 def calc_PV_diff(r, cf, zero_df, par):
     _zero_df = zero_df.copy()
     _zero_df['ZERO'] = _zero_df['ZERO']+r
     discount_df = discount_fac(_zero_df)
     discount_df.index = range(0, len(discount_df))
-    pv = (discount_df.iloc[:,0]*cf).sum()
-    #print(pv-par)
+    pv = (discount_df.iloc[:, 0]*cf).sum()
+    # print(pv-par)
     return pv-par
+
 
 def calc_OAS(cf_bond, zero_df):
     r_dict = {}
@@ -442,14 +445,15 @@ def calc_OAS(cf_bond, zero_df):
     _zero_df['DATE'] = _zero_df.index
     for column in cf_bond.columns:
         r0 = 0
-        r_dict[column] = scipy.optimize.fsolve(calc_PV_diff, r0, args=(cf_bond[column], _zero_df, Tranche_bal_dict[column]))[0]
+        r_dict[column] = scipy.optimize.fsolve(calc_PV_diff, r0, args=(
+                cf_bond[column], _zero_df, Tranche_bal_dict[column]))[0]
     r_ser = pd.Series(r_dict, index=cf_bond.columns)
     return r_ser
 
 
-#%%
+# %%
 # ABS Cash Flow Functions
-#%% Calculate Pool principal payments. The principal payments pass through
+# %% Calculate Pool principal payments. The principal payments pass through
 # to the bond holders. To do this we need to:
 # 1) Calculate the amortizing payment to include the principal pre-payments
 # 2) Subtract the interest payments to get principal payments
@@ -464,18 +468,19 @@ def pmt(bal, n_per, rate):
     """
     Calculates amortizing payments
     """
-    if abs(bal - 0)<1e-2:
+    if abs(bal - 0) < 1e-2:
         return 0.0
-    
-    return bal * rate * (1+rate)**n_per / ( (1+rate)**n_per - 1)
+
+    return bal * rate * (1+rate)**n_per / ((1+rate)**n_per - 1)
+
 
 # Keep separate CPR array so that we can make it depend on the short rate path
 def cpr(PSA, pp_rate, total_term, age, rate_path=None):
     """
     Function to give us CPR schedule
     """
-    arr       = np.linspace(0,total_term-1,num=total_term,dtype=int)
-    CPR_array = PSA * pp_rate * np.minimum(1,(arr+age)/30)
+    arr = np.linspace(0, total_term-1, num=total_term, dtype=int)
+    CPR_array = PSA * pp_rate * np.minimum(1, (arr+age)/30)
     return CPR_array
 
 
@@ -488,46 +493,48 @@ def pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, SMM_array):
         Pool_data.loc[i,'Interest'] = Pool_data.loc[i-1,'Balance'] * Pool_mwac
         Pool_data.loc[i,'Principal']= ( Pool_data.loc[i,'PMT'] - Pool_data.loc[i,'Interest'] if (
                                             Pool_data.loc[i-1,'Balance'] - Pool_data.loc[i-1,'PMT']
-                                                + Pool_data.loc[i-1,'Interest'] > .001  ) 
+                                                + Pool_data.loc[i-1,'Interest'] > .001  )
                                         else Pool_data.loc[i-1,'Balance'])
-        Pool_data.loc[i,'PP CF']    = SMM_array[i] * (Pool_data.loc[i-1,'Balance'] - 
+        Pool_data.loc[i,'PP CF']    = SMM_array[i] * (Pool_data.loc[i-1,'Balance'] -
                                                   Pool_data.loc[i,'Principal'])
         Pool_data.loc[i,'Balance']  = Pool_data.loc[i-1,'Balance'] - Pool_data.loc[i,'Principal'] \
                                         - Pool_data.loc[i,'PP CF']
-        
+
     return
 
-def tranche_CF_calc(Tranche_dict,CA_CY_princ,Rest_princ,GZ_interest,CZ_interest,coupon_rate):
+
+def tranche_CF_calc(Tranche_dict, CA_CY_princ, Rest_princ, GZ_interest,
+                    CZ_interest, coupon_rate):
     """
     Function to calculate Tranche waterfalls
     """
     for i in range(1,241):
         # principal to CA, then to CY
-        Tranche_dict['CA'].loc[i,'Principal']   = min( CA_CY_princ[i], 
+        Tranche_dict['CA'].loc[i,'Principal']   = min( CA_CY_princ[i],
                                                     Tranche_dict['CA'].loc[i-1,'Balance'] )
-        Tranche_dict['CA'].loc[i,'Balance']     = ( Tranche_dict['CA'].loc[i-1,'Balance'] 
+        Tranche_dict['CA'].loc[i,'Balance']     = ( Tranche_dict['CA'].loc[i-1,'Balance']
                                                     - Tranche_dict['CA'].loc[i,'Principal'] )
         Tranche_dict['CY'].loc[i,'Principal']   = CA_CY_princ[i] - Tranche_dict['CA'].loc[i,'Principal']
-        Tranche_dict['CY'].loc[i,'Balance']     = ( Tranche_dict['CY'].loc[i-1,'Balance'] 
+        Tranche_dict['CY'].loc[i,'Balance']     = ( Tranche_dict['CY'].loc[i-1,'Balance']
                                                     - Tranche_dict['CY'].loc[i,'Principal'] )
         Tranche_dict['CA'].loc[i,'Interest']    = Tranche_dict['CA'].loc[i-1,'Balance'] * coupon_rate
         Tranche_dict['CY'].loc[i,'Interest']    = Tranche_dict['CY'].loc[i-1,'Balance'] * coupon_rate
-        
+
         # CG, VE, CM, GZ, TC, CZ
         # Accrual interest components are independent of other calculations
         GZ_interest.loc[i,'interest'] = Tranche_dict['GZ'].loc[i-1,'Balance'] * coupon_rate
         CZ_interest.loc[i,'interest'] = Tranche_dict['CZ'].loc[i-1,'Balance'] * coupon_rate
-        
+
         #CG
-        Tranche_dict['CG'].loc[i,'Principal'] = max( 0, min( Tranche_dict['CG'].loc[i-1,'Balance'], 
+        Tranche_dict['CG'].loc[i,'Principal'] = max( 0, min( Tranche_dict['CG'].loc[i-1,'Balance'],
                                                         Rest_princ[i] + CZ_interest.loc[i,'interest']
                                                         ))
         Tranche_dict['CG'].loc[i,'Balance'] = Tranche_dict['CG'].loc[i-1,'Balance'] \
                                                 - Tranche_dict['CG'].loc[i,'Principal']
         Tranche_dict['CG'].loc[i,'Interest'] = Tranche_dict['CG'].loc[i-1,'Balance'] * coupon_rate
-        
+
         #VE
-        Tranche_dict['VE'].loc[i,'Principal'] = max( 0, min( Tranche_dict['VE'].loc[i-1,'Balance'], 
+        Tranche_dict['VE'].loc[i,'Principal'] = max( 0, min( Tranche_dict['VE'].loc[i-1,'Balance'],
                                                         Rest_princ[i] + CZ_interest.loc[i,'interest'] \
                                                         + GZ_interest.loc[i,'interest'] \
                                                         - Tranche_dict['CG'].loc[i,'Principal']
@@ -535,9 +542,9 @@ def tranche_CF_calc(Tranche_dict,CA_CY_princ,Rest_princ,GZ_interest,CZ_interest,
         Tranche_dict['VE'].loc[i,'Balance'] = Tranche_dict['VE'].loc[i-1,'Balance'] \
                                                 - Tranche_dict['VE'].loc[i,'Principal']
         Tranche_dict['VE'].loc[i,'Interest'] = Tranche_dict['VE'].loc[i-1,'Balance'] * coupon_rate
-        
+
         #CM
-        Tranche_dict['CM'].loc[i,'Principal'] = max( 0, min( Tranche_dict['CM'].loc[i-1,'Balance'], 
+        Tranche_dict['CM'].loc[i,'Principal'] = max( 0, min( Tranche_dict['CM'].loc[i-1,'Balance'],
                                                         Rest_princ[i] + CZ_interest.loc[i,'interest'] \
                                                         + GZ_interest.loc[i,'interest'] \
                                                         - Tranche_dict['CG'].loc[i,'Principal'] \
@@ -546,14 +553,14 @@ def tranche_CF_calc(Tranche_dict,CA_CY_princ,Rest_princ,GZ_interest,CZ_interest,
         Tranche_dict['CM'].loc[i,'Balance'] = Tranche_dict['CM'].loc[i-1,'Balance'] \
                                                 - Tranche_dict['CM'].loc[i,'Principal']
         Tranche_dict['CM'].loc[i,'Interest'] = Tranche_dict['CM'].loc[i-1,'Balance'] * coupon_rate
-    
+
         # GZ
         if Tranche_dict['CM'].loc[i,'Balance']>1e-1:
             GZ_interest.loc[i,'accrued'] = GZ_interest.loc[i,'interest']
         else:
             GZ_interest.loc[i,'accrued'] = min( GZ_interest.loc[i,'interest'],
                                                        Tranche_dict['TC'].loc[i,'Principal'])
-        Tranche_dict['GZ'].loc[i,'Principal'] = max( 0, min( Tranche_dict['GZ'].loc[i-1,'Balance'], 
+        Tranche_dict['GZ'].loc[i,'Principal'] = max( 0, min( Tranche_dict['GZ'].loc[i-1,'Balance'],
                                                         Rest_princ[i] + CZ_interest.loc[i,'interest'] \
                                                         + GZ_interest.loc[i,'accrued'] \
                                                         - Tranche_dict['CG'].loc[i,'Principal'] \
@@ -564,31 +571,31 @@ def tranche_CF_calc(Tranche_dict,CA_CY_princ,Rest_princ,GZ_interest,CZ_interest,
                                                 + GZ_interest.loc[i,'accrued'] \
                                                 - Tranche_dict['GZ'].loc[i,'Principal']
         Tranche_dict['GZ'].loc[i,'Interest'] = GZ_interest.loc[i,'interest'] \
-                                                - GZ_interest.loc[i,'accrued'] 
-    
+                                                - GZ_interest.loc[i,'accrued']
+
         #TC
         Tranche_dict['TC'].loc[i,'Principal'] = 0 if Tranche_dict['GZ'].loc[i,'Balance'] > 1e-1 else (
-                                                        min( Tranche_dict['TC'].loc[i-1,'Balance'], 
+                                                        min( Tranche_dict['TC'].loc[i-1,'Balance'],
                                                         Rest_princ[i] + CZ_interest.loc[i,'interest'] \
                                                         - Tranche_dict['GZ'].loc[i,'Principal']
                                                         ))
         Tranche_dict['TC'].loc[i,'Balance'] = Tranche_dict['TC'].loc[i-1,'Balance'] \
                                                 - Tranche_dict['TC'].loc[i,'Principal']
         Tranche_dict['TC'].loc[i,'Interest'] = Tranche_dict['TC'].loc[i-1,'Balance'] * coupon_rate
-        
+
         # CZ
         if Tranche_dict['TC'].loc[i,'Balance']>1e-1:
             CZ_interest.loc[i,'accrued'] = CZ_interest.loc[i,'interest']
         else:
             CZ_interest.loc[i,'accrued'] = min( CZ_interest.loc[i,'interest'],
                                                        Tranche_dict['TC'].loc[i,'Principal'])
-        Tranche_dict['CZ'].loc[i,'Principal'] = max( 0, min( Tranche_dict['CZ'].loc[i-1,'Balance'], 
+        Tranche_dict['CZ'].loc[i,'Principal'] = max( 0, min( Tranche_dict['CZ'].loc[i-1,'Balance'],
                                                         Rest_princ[i] + CZ_interest.loc[i,'accrued'] \
                                                         - Tranche_dict['CG'].loc[i,'Principal'] \
                                                         - Tranche_dict['VE'].loc[i,'Principal'] \
                                                         - Tranche_dict['CM'].loc[i,'Principal'] \
                                                         - Tranche_dict['GZ'].loc[i,'Principal'] \
-                                                        - Tranche_dict['TC'].loc[i,'Principal'] 
+                                                        - Tranche_dict['TC'].loc[i,'Principal']
                                                         ))
         Tranche_dict['CZ'].loc[i,'Balance'] = Tranche_dict['CZ'].loc[i-1,'Balance'] \
                                                 + CZ_interest.loc[i,'accrued'] \
