@@ -183,6 +183,9 @@ plt.ylabel('Flat Volatility')
 plt.savefig('./Plots/HW_1f_Flat_Vol_Comparison.png')
 plt.show()
 
+
+
+
 # %%
 # Problem 2
 #%% Hard coded parameters
@@ -205,7 +208,7 @@ coupon_rate = .05/12
 # PSA - constant (not dependent on interest rate)
 PSA = 1.50
 
-#%%
+#%% Calculate Cash Flows for the two Mtge Pools
 CPR_array=lib.cpr(PSA,.06,241,3) # Some hard coded parameters here as well
 SMM_array = 1 - (1-CPR_array)**(1/12)
 
@@ -252,20 +255,16 @@ cols=['interest','accrued']
 GZ_interest = pd.DataFrame( np.zeros((241,2)), columns=cols)
 CZ_interest = pd.DataFrame( np.zeros((241,2)), columns=cols)
 
+# Calculate Cash flows
 lib.tranche_CF_calc(Tranche_dict,CA_CY_princ,Rest_princ,GZ_interest,CZ_interest,coupon_rate)
                                                 
 CF_df = pd.DataFrame( np.zeros((240,8)), columns=list(Tranche_bal_dict.keys()) )
-
 for i in Tranche_bal_dict.keys():
     CF_df[i] = Tranche_dict[i]['Principal'] + Tranche_dict[i]['Interest']
 
-###############
-#%% Below is Wen's code
-#cf_bond = pd.read_csv('./cf.csv', header=0, index_col=0)
-#df = pd.read_excel('REMIC_Template New.xlsx',
-#                   sheet_name='Pricing', header=4, index_col=0)
-#cf_bond = df.iloc[:, :8]
+#%% Calculate Standard Errors, Duration, Convexity, and OAS
 cf_bond=CF_df.iloc[1:,:]
+
 m = 10000
 
 r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
