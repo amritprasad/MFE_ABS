@@ -12,7 +12,7 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
 # Import library
-import library as lib
+import abslibrary as lib
 
 # Set options
 pd.set_option('display.max_columns', 10)
@@ -198,7 +198,7 @@ price_df_MC = lib.mc_bond(m, cf_bond, theta_df, kappa, sigma, r0,
 price_mean_MC = price_df_MC.mean()
 price_std_MC = price_df_MC.std()/np.sqrt(len(price_df_MC))
 
-duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=True)
+duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa,
+                                                  sigma, r0, antithetic=True)
 
 oas_ser = lib.calc_OAS(cf_bond, zero_df)
-
