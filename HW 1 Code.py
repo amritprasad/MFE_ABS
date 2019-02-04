@@ -273,7 +273,6 @@ price_df_MC = lib.mc_bond(m, cf_bond, theta_df, kappa, sigma, r0,
                           antithetic=True)
 price_mean_MC = price_df_MC.mean()
 price_std_MC = price_df_MC.std()/np.sqrt(len(price_df_MC))
-assert(False)
 
 duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa,
                                                   sigma, r0, antithetic=True)
