@@ -382,11 +382,14 @@ def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
 def mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=False):
     r = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
     r = r.iloc[:len(cf_bond)]
-
+    
+    R = (cf_bond.sum(1).T*((r/24).applymap(np.exp)-1).T).T
+    
     price_dict = {}
     for i in cf_bond.columns:
-        price_dict[i] = (cf_bond[i].T/(r.mul(r.index, axis=0)*0.25).applymap(
-                np.exp).T).T.sum()
+        price_dict[i] = (cf_bond[i].T/(r.mul(r.index, axis=0)/12).applymap(np.exp).T).T.sum()
+    price_dict['R'] = (R/(r.mul(r.index, axis=0)/12).applymap(np.exp)).sum()
+
     price_df = pd.DataFrame(price_dict)
     if antithetic:
         length = int(m/2)
@@ -404,6 +407,28 @@ def calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0,
     price = mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic).mean()
     price_neg = mc_bond(m, cf_bond, theta_df, kappa, sigma, r0-deltar,
                         antithetic).mean()
-    duration = (price_pos-price_neg)/price/2/deltar
+    duration = (price_neg-price_pos)/price/2/deltar
     convexity = (price_pos+price_neg-price*2)/price/deltar
     return duration, convexity
+
+def calc_PV_diff(r, cf, zero_df, par):
+    _zero_df = zero_df.copy()
+    _zero_df['ZERO'] = _zero_df['ZERO']+r
+    discount_df = discount_fac(_zero_df)
+    discount_df.index = range(0, len(discount_df))
+    pv = (discount_df.iloc[:,0]*cf).sum()
+    #print(pv-par)
+    return pv-par
+
+def calc_OAS(cf_bond, zero_df):
+    r_dict = {}
+    _zero_df = zero_df.copy()
+    _zero_df.index = _zero_df['DATE']
+    _zero_df = _zero_df[['ZERO']]
+    _zero_df = _zero_df.resample('1MS').interpolate(method='index')
+    _zero_df['DATE'] = _zero_df.index
+    for column in cf_bond.columns:
+        r0 = 0
+        r_dict[column] = scipy.optimize.fsolve(calc_PV_diff, r0, args=(cf_bond[column], _zero_df, Tranche_bal_dict[column]))[0]
+    r_ser = pd.Series(r_dict, index=cf_bond.columns)
+    return r_ser
