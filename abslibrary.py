@@ -7,6 +7,16 @@ Library of functions
 import pandas as pd
 import numpy as np
 
+Tranche_bal_dict={
+'CG':74800000,
+'VE':5200000,
+'CM':14000000,
+'GZ':22000000,
+'TC':20000000,
+'CZ':24000000,
+'CA':32550000,
+'CY':13950000
+}
 
 def t_dattime(d0, d1, convention):
     """
