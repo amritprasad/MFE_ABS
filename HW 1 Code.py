@@ -185,11 +185,87 @@ plt.show()
 
 # %%
 # Problem 2
-cf_bond = pd.read_csv('./cf.csv', header=0, index_col=0)
-df = pd.read_excel('/home/paul/Downloads/REMIC_Template New.xlsx',
-                   sheet_name='Pricing', header=4, index_col=0)
-cf_bond = df.iloc[:, :8]
+#%% Hard coded parameters
 
+# Starting Balance 
+Pool1_bal   = 77657656.75
+Pool2_bal   = 128842343.35
+Pool1_term  = 236
+Pool2_term  = 237
+
+# Coupon rates
+Pool1_wac   = 0.05402
+Pool2_wac   = 0.05419
+Pool1_mwac = Pool1_wac/12
+Pool2_mwac = Pool2_wac/12
+Pool1_age   = 3
+Pool2_age   = 3
+coupon_rate = .05/12
+
+# PSA - constant (not dependent on interest rate)
+PSA = 1.50
+
+#%%
+CPR_array=lib.cpr(PSA,.06,241,3) # Some hard coded parameters here as well
+SMM_array = 1 - (1-CPR_array)**(1/12)
+
+# pre-allocate arrays to hold pool cash flows
+# 7 columns: PMT, Interest, Principal, Pre-pmt CPR, SMM, pp CF, Balance
+cols       = ['PMT', 'Interest', 'Principal', 'PP CF', 'Balance']
+Pool1_data = pd.DataFrame( np.zeros((241,5)), columns=cols)
+Pool2_data = pd.DataFrame( np.zeros((241,5)), columns=cols)
+
+Pool1_data.loc[0,'Balance'] = Pool1_bal
+Pool2_data.loc[0,'Balance'] = Pool2_bal
+lib.pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array)
+lib.pool_cf(Pool2_data, Pool2_mwac, Pool2_age, Pool2_term, SMM_array)
+
+#%% Reproduce Principal CF Allocation (waterfall)
+Total_principal = Pool1_data['Principal'] + Pool2_data['Principal'] + Pool1_data['PP CF'] \
+                    + Pool2_data['PP CF']
+CA_CY_princ = 0.225181598 * Total_principal
+Rest_princ = 0.7748184 * Total_principal
+
+# Pre-Allocate for each Tranche, then do waterfall logic
+Tranche_dict = {}
+Tranche_list = ['CG', 'VE', 'CM',   'GZ', 'TC', 'CZ', 'CA', 'CY']
+cols=['Principal','Interest','Balance']
+
+Tranche_bal_dict={
+'CG':74800000,
+'VE':5200000,
+'CM':14000000,
+'GZ':22000000,
+'TC':20000000,
+'CZ':24000000,
+'CA':32550000,
+'CY':13950000
+}
+
+# small for loop, pre-allocate data for tranches
+for i in Tranche_list:
+    Tranche_dict[i] = pd.DataFrame(np.zeros((241,3)),columns=cols)
+    Tranche_dict[i].loc[0,'Balance'] = Tranche_bal_dict[i]
+
+# temporary arrays for calculating GZ/CZ interest accrual. The "interest" here is not cash flow.
+cols=['interest','accrued']
+GZ_interest = pd.DataFrame( np.zeros((241,2)), columns=cols)
+CZ_interest = pd.DataFrame( np.zeros((241,2)), columns=cols)
+
+lib.tranche_CF_calc(Tranche_dict,CA_CY_princ,Rest_princ,GZ_interest,CZ_interest,coupon_rate)
+                                                
+CF_df = pd.DataFrame( np.zeros((240,8)), columns=list(Tranche_bal_dict.keys()) )
+
+for i in Tranche_bal_dict.keys():
+    CF_df[i] = Tranche_dict[i]['Principal'] + Tranche_dict[i]['Interest']
+
+###############
+#%% Below is Wen's code
+#cf_bond = pd.read_csv('./cf.csv', header=0, index_col=0)
+#df = pd.read_excel('REMIC_Template New.xlsx',
+#                   sheet_name='Pricing', header=4, index_col=0)
+#cf_bond = df.iloc[:, :8]
+cf_bond=CF_df.iloc[1:,:]
 m = 10000
 
 r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
