@@ -6,6 +6,7 @@ Library of functions
 # Imports
 import pandas as pd
 import numpy as np
+import scipy
 
 Tranche_bal_dict={
 'CG':74800000,
@@ -368,7 +369,7 @@ def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
     spot_simulate_df = theta_df.resample('1MS').first()*np.nan
     spot_simulate_df = pd.DataFrame(index=spot_simulate_df.index,
                                     columns=range(1, m+1))
-    deltat = 0.25
+    deltat = 1.0/12
     if antithetic:
         row, column = spot_simulate_df.shape
         df_temp = pd.DataFrame(np.random.normal(size=(row, int(column/2))))
@@ -390,15 +391,17 @@ def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
 
 
 def mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=False):
-    r = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
+    r = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic).astype(float)
     r = r.iloc[:len(cf_bond)]
     
-    R = (cf_bond.sum(1).T*((r/24).applymap(np.exp)-1).T).T
+    R = (cf_bond.sum(1).T*(np.exp(r/24)-1).T).T
+    
+    r_cum = r.cumsum()
     
     price_dict = {}
     for i in cf_bond.columns:
-        price_dict[i] = (cf_bond[i].T/(r.mul(r.index, axis=0)/12).applymap(np.exp).T).T.sum()
-    price_dict['R'] = (R/(r.mul(r.index, axis=0)/12).applymap(np.exp)).sum()
+        price_dict[i] = (cf_bond[i].T/np.exp(r_cum/12).T).T.sum()
+    price_dict['R'] = (R/np.exp(r_cum/12)).sum()
 
     price_df = pd.DataFrame(price_dict)
     if antithetic:
