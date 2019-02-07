@@ -414,14 +414,14 @@ def mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic=False):
 
 def calc_duration_convexity(m, cf_bond, theta_df, kappa, sigma, r0,
                             antithetic=True):
-    deltar = 0.0002
+    deltar = 0.0025
     price_pos = mc_bond(m, cf_bond, theta_df, kappa, sigma, r0+deltar,
                         antithetic).mean()
     price = mc_bond(m, cf_bond, theta_df, kappa, sigma, r0, antithetic).mean()
     price_neg = mc_bond(m, cf_bond, theta_df, kappa, sigma, r0-deltar,
                         antithetic).mean()
     duration = (price_neg-price_pos)/price/2/deltar
-    convexity = (price_pos+price_neg-price*2)/price/deltar
+    convexity = (price_pos+price_neg-price*2)/price/deltar**2
     return duration, convexity
 
 def calc_PV_diff(r, cf, zero_df, par):
