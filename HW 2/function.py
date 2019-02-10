@@ -14,6 +14,9 @@ def log_log_grad(param, tb, te, event, covars):
     This function calculates the gradient of the log-likelihood for the
     proportional hazard model using the log-logistics baseline distribution
     """
+    tb = tb.flatten()
+    te = te.flatten()
+    event = event.flatten()
     g = param[0] # Amplitude of the baseline hazard; gamma in the notation
     p = param[1] # Shape of baseline hazard; p in the notation
     coef = param[2:] # Coefficients for covariates; beta in the notation
@@ -52,7 +55,6 @@ def log_log_grad(param, tb, te, event, covars):
         dlldc = -(dlldc1-dlldc2)
 
         grad.append(dlldc)
-    print('Grad:', grad)
     return grad
 
 
@@ -64,8 +66,9 @@ def log_log_like(param, tb, te, event, covars):
     """
     # tb=static_df['period_begin']/365;te=static_df['period_end']/365
     # event=static_df['prepay'];param=[0.1]*7
-
-    print('Params:', param)
+    tb = tb.flatten()
+    te = te.flatten()
+    event = event.flatten()
     # Get the number of parameters
     nentries = len(te)
 
@@ -92,7 +95,6 @@ def log_log_like(param, tb, te, event, covars):
     # In order for the maximum likelihood estimation to converge it is necessary to
     # provide these derivatives so that the search algogrithm knows which direction
     # to search in.
-    print('Neg LLK:', neglogL)
 
     grad = log_log_grad(param, tb, te, event, covars)
     return neglogL, grad

@@ -38,9 +38,12 @@ static_df[per_cols] /= 100
 covar_cols = ['cpn_gap', 'summer']
 covars = static_df[covar_cols].values
 param = np.random.uniform(size=len(covar_cols) + 2)
-tb = static_df['period_begin'].values/365
-te = static_df['period_end'].values/365
-event = static_df['prepay'].values
+tb = static_df['period_begin'].values.reshape(-1, 1)/365
+te = static_df['period_end'].values.reshape(-1, 1)/365
+event = static_df['prepay'].values.reshape(-1, 1)
+eps = np.finfo(float).eps
+bounds = ([eps, None], [eps, None], [None, None], [None, None])
 fnc.log_log_like(param, tb, te, event, covars)
 fnc.log_log_grad(param, tb, te, event, covars)
-fmin_tnc(func=fnc.log_log_grad, x0=param, args=(tb, te, event, covars), disp=5)
+sol, nfeval, rc = fmin_tnc(func=fnc.log_log_like, x0=param, args=(
+        tb, te, event, covars), disp=5, bounds=bounds)
