@@ -89,7 +89,7 @@ def log_log_like(param, tb, te, event, covars):
 
     logc = np.zeros(nentries)
     logF = -(np.log(1+(g*te)**p) - np.log(1+(g*tb)**p))
-    if not len(covars):
+    if len(covars):
         # Product of covarites and coefficients
         logc = (covars.dot(coef)).flatten()
         # Log of conditional survival function

@@ -42,7 +42,6 @@ covar_cols = ['cpn_gap', 'summer']
 covars = static_df[covar_cols].values
 np.random.seed(42)
 param = np.random.uniform(size=len(covar_cols) + 2)
-# param = np.arange(0.01, 0.05, 0.01)
 tb = static_df['period_begin'].values/365
 te = static_df['period_end'].values/365
 event = static_df['prepay'].values
@@ -57,7 +56,7 @@ res = minimize(fun=fnc.log_log_like, x0=param, args=(tb, te, event, covars),
 print('Initial LLK: {:.2f}'.format(-fnc.log_log_like(param, tb, te,
                                                      event, covars)))
 sol = res.x
-std_err = np.sqrt(np.diag(res.hess_inv))
+std_err = np.sqrt(np.diag(res.hess_inv.todense()))
 print('Final LLK: {:.2f}'.format(-fnc.log_log_like(sol, tb, te,
                                                    event, covars)))
 print('Parameters:')
