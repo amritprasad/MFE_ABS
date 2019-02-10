@@ -9,6 +9,7 @@ Created on Fri Feb  8 17:32:44 2019
 import numpy as np
 
 phist = []
+cnt = 0
 
 
 def log_log_grad(param, tb, te, event, covars):
@@ -73,6 +74,7 @@ def log_log_like(param, tb, te, event, covars):
     te = te.flatten()
     event = event.flatten()
     # Get the number of parameters
+    nparams = len(param)
     nentries = len(te)
 
     g = param[0]  # Amplitude of the baseline hazard; gamma in the notation
@@ -100,6 +102,11 @@ def log_log_like(param, tb, te, event, covars):
     # to search in.
 
     grad = log_log_grad(param, tb, te, event, covars)
-    global phist
-    phist.append(param)
+    global phist, cnt
+
+    if cnt % (nparams+1) == 0:
+        phist.append(param)
+
+    cnt += 1
+
     return neglogL, grad

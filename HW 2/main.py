@@ -37,8 +37,8 @@ static_df[per_cols] /= 100
 # covar_cols = ['orig_dti', 'orig_ltv', 'cpn_gap', 'summer', 'upb_ratio']
 covar_cols = ['cpn_gap', 'summer']
 covars = static_df[covar_cols].values
-# param = np.random.uniform(size=len(covar_cols) + 2)
-param = np.arange(0.01, 0.05, 0.01)
+param = np.random.uniform(size=len(covar_cols) + 2)
+# param = np.arange(0.01, 0.05, 0.01)
 tb = static_df['period_begin'].values.reshape(-1, 1)/365
 te = static_df['period_end'].values.reshape(-1, 1)/365
 event = static_df['prepay'].values.reshape(-1, 1)
