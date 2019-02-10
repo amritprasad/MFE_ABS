@@ -59,7 +59,7 @@ def log_log_grad(param, tb, te, event, covars):
         dlldc = -(dlldc1-dlldc2)
 
         grad.append(dlldc)
-    return grad
+    return np.array(grad)
 
 
 def log_log_like(param, tb, te, event, covars):
