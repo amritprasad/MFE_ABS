@@ -1,12 +1,13 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Created on Fri Feb  8 17:32:44 2019
-
-@author: paul
+MFE 230M
+Library of functions (HW 2)
 """
-
+# Imports
+import pandas as pd
 import numpy as np
+
+# Import library
+import abslibrary as lib  # HW 1 library
 
 phist = []
 gradhist = []
@@ -112,3 +113,41 @@ def log_log_like(param, tb, te, event, covars):
     cnt += 1
 
     return neglogL
+
+
+def hw_B(kappa):
+    """
+    Function to calculate B(t, T) according to the Hull-White model.
+    B(t, T) = B(0, T-t)
+
+    Args:
+        kappa (float)
+
+    Returns:
+        pd.Series containing values for B. B[n/24] would work.
+    """
+    # Create 15 day gaps
+    t = np.linspace(0, 30, 721)
+    B = pd.Series((1 - np.exp(-kappa*t))/kappa, index=t)
+    return B
+
+
+def hw_A(kappa, sigma, B, theta):
+    """
+    Function to calculate A(t, T) according to the Hull-White model.
+    A(t, T) = A(0, T-t)
+
+    Args:
+        kappa, sigma (float)
+
+        B (pd.Series)
+
+        theta (pd.DataFrame)
+
+    Returns:
+        pd.Series containing values for A. A[n/24] would work.
+    """
+    from scipy.integrate import quad
+    theta = theta['THETA']
+    theta.index = lib.t_dattime(theta.index.min(), theta.index, 'ACTby365')
+    return A
