@@ -37,13 +37,21 @@ static_df[per_cols] /= 100
 # covar_cols = ['orig_dti', 'orig_ltv', 'cpn_gap', 'summer', 'upb_ratio']
 covar_cols = ['cpn_gap', 'summer']
 covars = static_df[covar_cols].values
-param = np.random.uniform(size=len(covar_cols) + 2)
+# param = np.random.uniform(size=len(covar_cols) + 2)
+param = np.arange(0.01, 0.05, 0.01)
 tb = static_df['period_begin'].values.reshape(-1, 1)/365
 te = static_df['period_end'].values.reshape(-1, 1)/365
 event = static_df['prepay'].values.reshape(-1, 1)
 eps = np.finfo(float).eps
+# bounds = ([eps, None], [eps, None], [None, None], [None, None], [None, None],
+#           [None, None], [None, None])
 bounds = ([eps, None], [eps, None], [None, None], [None, None])
 fnc.log_log_like(param, tb, te, event, covars)
 fnc.log_log_grad(param, tb, te, event, covars)
+# Run optimizer
 sol, nfeval, rc = fmin_tnc(func=fnc.log_log_like, x0=param, args=(
-        tb, te, event, covars), disp=5, bounds=bounds)
+        tb, te, event, covars), disp=5, bounds=bounds, ftol=eps)
+print('Parameters:')
+print('gamma =', sol[0], '\np =', sol[1], '\nCoupon Gap Coef =', sol[2],
+      '\nSummer Indicator =', sol[3])
+sol_grad = fnc.log_log_grad(sol, tb, te, event, covars)
