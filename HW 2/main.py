@@ -42,8 +42,9 @@ covar_cols = ['cpn_gap', 'summer']
 covars = static_df[covar_cols].values
 np.random.seed(42)
 param = np.random.uniform(size=len(covar_cols) + 2)
-tb = static_df['period_begin'].values/365
-te = static_df['period_end'].values/365
+#param = np.array([0.01, 0.02, 0.2, 0.04])
+tb = static_df['period_begin'].values
+te = static_df['period_end'].values
 event = static_df['prepay'].values
 
 eps = np.finfo(float).eps
@@ -73,6 +74,7 @@ print('gamma =', gamma, '\np =', p, '\nCoupon Gap Coef =', beta[0],
 print('\nRespective Standard Errors:', ', '.join(std_err.round(2).astype(str)))
 print('\nProportional Standard Errors:', ', '.join(prop_std_err.round(
         1).astype(str)))
+
 # %%
 # Plot the baseline hazard rate
 t = np.linspace(0, 1, 100)
@@ -104,7 +106,7 @@ zero_df.columns = ['DATE', 'ZERO']
 zero_df['ZERO'] /= 100.
 # Drop rows with NA Zero rates
 zero_df.dropna(subset=['ZERO'], inplace=True)
-# The last row has a date missing. Fill it
+# The last row has a date missing. Fill itlibor_df
 zero_df.loc[zero_df.index[-1], 'DATE'] = zero_df.loc[
         zero_df.index[-2], 'DATE'] + pd.DateOffset(months=3)
 # Calculate discount rates
@@ -126,8 +128,8 @@ covar_cols = ['cpn_gap', 'summer']
 covars = dynamic_df[covar_cols].values
 # Provide guess = static estimation
 param = np.array([14.5, 2.1, 22.5, -2.4])
-tb = dynamic_df['period_begin'].values/365
-te = dynamic_df['period_end'].values/365
+tb = dynamic_df['period_begin'].values
+te = dynamic_df['period_end'].values
 event = dynamic_df['prepay'].values
 
 eps = np.finfo(float).eps
