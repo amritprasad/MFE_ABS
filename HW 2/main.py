@@ -8,7 +8,7 @@ import pandas as pd
 import numpy as np
 import os
 import sys
-from scipy.optimize import fmin_tnc
+from scipy.optimize import fmin_tnc, fmin_l_bfgs_b
 import matplotlib.pyplot as plt
 
 # Import library
@@ -46,12 +46,12 @@ eps = np.finfo(float).eps
 # bounds = ([eps, None], [eps, None], [None, None], [None, None], [None, None],
 #           [None, None], [None, None])
 bounds = ([eps, None], [eps, None], [None, None], [None, None])
-fnc.log_log_like(param, tb, te, event, covars)
-fnc.log_log_grad(param, tb, te, event, covars)
 # Run optimizer
 sol, nfeval, rc = fmin_tnc(func=fnc.log_log_like, x0=param, args=(
         tb, te, event, covars), disp=5, bounds=bounds, ftol=eps)
+# hessian = fnc.hessian(np.stack(fnc.phist))
+std_err = np.apply_along_axis(lambda x: np.std(x, ddof=1)/np.sqrt(x.size),
+                              axis=0, arr=np.stack(fnc.phist))
 print('Parameters:')
 print('gamma =', sol[0], '\np =', sol[1], '\nCoupon Gap Coef =', sol[2],
       '\nSummer Indicator =', sol[3])
-sol_grad = fnc.log_log_grad(sol, tb, te, event, covars)

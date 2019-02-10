@@ -8,6 +8,8 @@ Created on Fri Feb  8 17:32:44 2019
 
 import numpy as np
 
+phist = []
+
 
 def log_log_grad(param, tb, te, event, covars):
     """
@@ -66,6 +68,7 @@ def log_log_like(param, tb, te, event, covars):
     """
     # tb=static_df['period_begin']/365;te=static_df['period_end']/365
     # event=static_df['prepay'];param=[0.1]*7
+
     tb = tb.flatten()
     te = te.flatten()
     event = event.flatten()
@@ -97,28 +100,6 @@ def log_log_like(param, tb, te, event, covars):
     # to search in.
 
     grad = log_log_grad(param, tb, te, event, covars)
+    global phist
+    phist.append(param)
     return neglogL, grad
-
-
-def hessian(x, x_grad):
-    """
-    Calculate the hessian matrix with finite differences
-
-    Args:
-       x : ndarray
-
-       x_grad : ndarray
-
-    Returns:
-       an array of shape (x.dim, x.ndim) + x.shape
-       where the array[i, j, ...] corresponds to the second derivative x_ij
-    """
-    # x=sol.reshape(-1, 1); x_grad=np.array(sol_grad).reshape(-1, 1)
-    hessian = np.empty((x.ndim, x.ndim) + x.shape, dtype=x.dtype)
-    for k, grad_k in enumerate(x_grad):
-        # iterate over dimensions
-        # apply gradient again to every component of the first derivative.
-        tmp_grad = np.gradient(grad_k)
-        for l, grad_kl in enumerate(tmp_grad):
-            hessian[k, l, :, :] = grad_kl
-    return hessian
