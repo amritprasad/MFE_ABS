@@ -42,9 +42,11 @@ covar_cols = ['cpn_gap', 'summer']
 covars = static_df[covar_cols].values
 np.random.seed(42)
 param = np.random.uniform(size=len(covar_cols) + 2)
-#param = np.array([0.01, 0.02, 0.2, 0.04])
-tb = static_df['period_begin'].values
-te = static_df['period_end'].values
+# param = np.array([0.01, 0.02, 0.2, 0.04])
+# Since the times are in months, convert them to yearly time to make them the
+# same units as the coupon gap
+tb = static_df['period_begin'].values/12
+te = static_df['period_end'].values/12
 event = static_df['prepay'].values
 
 eps = np.finfo(float).eps
@@ -60,8 +62,9 @@ gamma, p, _, _ = sol
 beta = sol[2:]
 # Calculate standard errors as the square root of the diagonal elements of the
 # Hessian inverse
+N = len(covars)
 hessian_inv = res.hess_inv.todense()
-std_err = toolz.pipe(hessian_inv, np.diag, np.sqrt)
+std_err = toolz.pipe(hessian_inv/N, np.diag, np.sqrt)
 prop_std_err = (100*std_err/sol)
 
 print('Initial LLK: {:.2f}'.format(-fnc.log_log_like(param, tb, te,
@@ -77,7 +80,7 @@ print('\nProportional Standard Errors:', ', '.join(prop_std_err.round(
 
 # %%
 # Plot the baseline hazard rate
-t = np.linspace(0, 1, 100)
+t = np.linspace(0, 30, 500)
 lambda_0 = gamma*p*((gamma*t)**(p-1))/(1 + (gamma*t)**p)
 folder = 'Plots'
 if not os.path.exists(folder):
@@ -128,8 +131,8 @@ covar_cols = ['cpn_gap', 'summer']
 covars = dynamic_df[covar_cols].values
 # Provide guess = static estimation
 param = np.array([14.5, 2.1, 22.5, -2.4])
-tb = dynamic_df['period_begin'].values
-te = dynamic_df['period_end'].values
+tb = dynamic_df['period_begin'].values/12
+te = dynamic_df['period_end'].values/12
 event = dynamic_df['prepay'].values
 
 eps = np.finfo(float).eps
@@ -147,8 +150,9 @@ gamma_dyn, p_dyn, _, _ = sol_dyn
 beta_dyn = sol_dyn[2:]
 # Calculate standard errors as the square root of the diagonal elements of the
 # Hessian inverse
+N = len(covars)
 hessian_inv_dyn = res_dyn.hess_inv.todense()
-std_err_dyn = toolz.pipe(hessian_inv_dyn, np.diag, np.sqrt)
+std_err_dyn = toolz.pipe(hessian_inv_dyn/N, np.diag, np.sqrt)
 prop_std_err_dyn = (100*std_err_dyn/sol_dyn)
 
 print('Initial LLK: {:.2f}'.format(-fnc.log_log_like(param, tb, te,
@@ -164,7 +168,7 @@ print('\nProportional Standard Errors:', ', '.join(prop_std_err_dyn.round(
         1).astype(str)))
 # %%
 # Plot the baseline hazard rate
-t = np.linspace(0, 1, 100)
+t = np.linspace(0, 30, 100)
 expo = np.append(np.nan, (gamma_dyn*t[1:])**(p_dyn-1))
 lambda_0_dyn = gamma_dyn*p_dyn*expo/(1+(gamma_dyn*t)**p_dyn)
 folder = 'Plots'
