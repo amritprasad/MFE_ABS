@@ -19,9 +19,9 @@ def log_log_grad(param, tb, te, event, covars):
     This function calculates the gradient of the log-likelihood for the
     proportional hazard model using the log-logistics baseline distribution
     """
-    g = param[0] # Amplitude of the baseline hazard; gamma in the notation
-    p = param[1] # Shape of baseline hazard; p in the notation
-    coef = param[2:] # Coefficients for covariates; beta in the notation
+    g = param[0]  # Amplitude of the baseline hazard; gamma in the notation
+    p = param[1]  # Shape of baseline hazard; p in the notation
+    coef = param[2:]  # Coefficients for covariates; beta in the notation
 
     dlldg1 = sum(event*(p/g-(p*g**(p-1)*(te**p))/(1+(g*te)**p)))
     if len(covars):
@@ -33,10 +33,10 @@ def log_log_grad(param, tb, te, event, covars):
 
     dlldp1 = sum(event*(1/p+np.log(g*te)-(g*te)**p*np.log(g*te)/(1+(g*te)**p)))
 
-    # When tb = 0, calculate the derivative of the unconditional survival function.
-    # This is because the derivative of the conditional survival function does not
-    # generalize to the unconditional case when tb = 0. There is a singularity on
-    # log(g*tb) for tb = 0.
+    # When tb = 0, calculate the derivative of the unconditional survival
+    # function. This is because the derivative of the conditional survival
+    # function does not generalize to the unconditional case when tb = 0. There
+    # is a singularity on log(g*tb) for tb = 0.
 
     mask = tb == 0
     ln_gtb = np.empty(tb.size)
@@ -153,3 +153,34 @@ def hw_A(kappa, sigma, B, theta):
     theta = theta['THETA']
     theta.index = lib.t_dattime(theta.index.min(), theta.index, 'ACTby365')
     return A
+
+
+def calc_tenor_rate(_discount_df, tenor):
+    """
+    Function to calculate the rates corresponding to the tenor
+
+    Args:
+        _discount_df (pd.DataFrame): contains discount factors
+
+        tenor (int): in months
+
+    Returns:
+        pd.DataFrame containing tenor rates
+    """
+    discount_df = _discount_df.copy()
+    i = 0
+    start_date = discount_df.index[i]
+    end_date = start_date + pd.DateOffset(months=tenor)
+    tenor_df = pd.DataFrame(columns=['%s_YR_RATE' % str(int(tenor/12))])
+
+    while end_date <= discount_df.index.max():
+        start_disc = discount_df.iloc[i, 0]
+        end_disc = discount_df.asof(end_date)[0]
+        tenor_df.loc[start_date] = 12*np.log(start_disc/end_disc)/tenor
+        i += 1
+        start_date = discount_df.index[i]
+        end_date = start_date + pd.DateOffset(months=tenor)
+
+    tenor_df.index.name = 'DATE'
+
+    return tenor_df

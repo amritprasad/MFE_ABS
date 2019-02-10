@@ -91,6 +91,26 @@ plt.savefig(os.path.join(folder, 'lambda_0.png'))
 # b), c)
 # Get Hull-White parameters from HW 1
 kappa, sigma = (0.1141813928341348, 0.01453600529450289)
+# Get discount factors
+# Load LIBOR Data
+data_folder = 'Data'
+filename = '20040830_usd23_atm_caps_jan_2019_update2.xlsx'
+filepath = os.path.join('.', data_folder, filename)
+libor_df = pd.read_excel(filepath, sheet_name='usd23_libor_curve', skiprows=3,
+                         header=0, parse_dates=[0, 1])
+
+zero_df = libor_df[['Date', 'Semi-Compounded Zero Rate (%)']].copy()
+zero_df.columns = ['DATE', 'ZERO']
+zero_df['ZERO'] /= 100.
+# Drop rows with NA Zero rates
+zero_df.dropna(subset=['ZERO'], inplace=True)
+# The last row has a date missing. Fill it
+zero_df.loc[zero_df.index[-1], 'DATE'] = zero_df.loc[
+        zero_df.index[-2], 'DATE'] + pd.DateOffset(months=3)
+# Calculate discount rates
+discount_df = lib.discount_fac(zero_df)
+# Calculate 10 yr rates
+tenyr_df = fnc.calc_tenor_rate(discount_df, tenor=120)
 # %%
 # Dynamic Estimation
 # d)
