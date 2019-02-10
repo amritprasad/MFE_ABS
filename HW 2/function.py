@@ -99,10 +99,10 @@ def log_log_like(param, tb, te, event, covars):
     # Construct the negative of log likelihood
     neglogL = -(sum(event*(logh+logc)) + sum(logF))
 
-    # Calculate the derivative of the log likelihood with respect to each parameter.
-    # In order for the maximum likelihood estimation to converge it is necessary to
-    # provide these derivatives so that the search algogrithm knows which direction
-    # to search in.
+    # Calculate the derivative of the log likelihood with respect to each
+    # parameter. In order for the maximum likelihood estimation to converge it
+    # is necessary to provide these derivatives so that the search algogrithm
+    # knows which direction to search in.
 
     global phist, cnt, gradhist
 
@@ -111,6 +111,8 @@ def log_log_like(param, tb, te, event, covars):
     phist.append(param)
 
     cnt += 1
+    if cnt % 100 == 0:
+        print('%d evaluations of negative LLK function completed' % cnt)
 
     return neglogL
 

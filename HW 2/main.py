@@ -10,7 +10,7 @@ import os
 import sys
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-import toolz as t
+import toolz
 
 # Import library
 import abslibrary as lib  # HW 1 library
@@ -24,6 +24,7 @@ py_ver = sys.version.split(' ')
 if py_ver[0][:3] != '3.7':
     raise OSError('Please install Python Version 3.7')
 # %%
+# Static Estimation
 # a)
 # Load Data
 data_folder = 'Data'
@@ -59,7 +60,7 @@ beta = sol[2:]
 # Calculate standard errors as the square root of the diagonal elements of the
 # Hessian inverse
 hessian_inv = res.hess_inv.todense()
-std_err = t.pipe(hessian_inv, np.diag, np.sqrt)
+std_err = toolz.pipe(hessian_inv, np.diag, np.sqrt)
 prop_std_err = (100*std_err/sol)
 
 print('Initial LLK: {:.2f}'.format(-fnc.log_log_like(param, tb, te,
@@ -87,6 +88,71 @@ plt.ylabel('Baseline Hazard')
 plt.title(r'$\lambda_0(t)$')
 plt.savefig(os.path.join(folder, 'lambda_0.png'))
 # %%
-# b)
+# b), c)
 # Get Hull-White parameters from HW 1
 kappa, sigma = (0.1141813928341348, 0.01453600529450289)
+# %%
+# Dynamic Estimation
+# d)
+# Load Data
+data_folder = 'Data'
+filename = 'dynamic.csv'
+filepath = os.path.join('.', data_folder, filename)
+dynamic_df = pd.read_csv(filepath)
+# Convert the percentage covariates to decimals
+per_cols = ['orig_dti', 'orig_ltv', 'cpn_gap']
+dynamic_df[per_cols] /= 100
+covar_cols = ['cpn_gap', 'summer']
+covars = dynamic_df[covar_cols].values
+# Provide guess = static estimation
+param = np.array([14.5, 2.1, 22.5, -2.4])
+tb = dynamic_df['period_begin'].values/365
+te = dynamic_df['period_end'].values/365
+event = dynamic_df['prepay'].values
+
+eps = np.finfo(float).eps
+bounds = ((eps, None), (eps, None), (None, None), (None, None))
+
+# Run optimizer
+res_dyn = minimize(fun=fnc.log_log_like, x0=param, args=(
+        tb, te, event, covars), jac=fnc.log_log_grad, bounds=bounds,
+                   method='L-BFGS-B', options={'disp': True})
+if not res_dyn.success:
+    raise ValueError('Optimizer did not converge')
+
+sol_dyn = res_dyn.x
+gamma_dyn, p_dyn, _, _ = sol_dyn
+beta_dyn = sol_dyn[2:]
+# Calculate standard errors as the square root of the diagonal elements of the
+# Hessian inverse
+hessian_inv_dyn = res_dyn.hess_inv.todense()
+std_err_dyn = toolz.pipe(hessian_inv_dyn, np.diag, np.sqrt)
+prop_std_err_dyn = (100*std_err_dyn/sol_dyn)
+
+print('Initial LLK: {:.2f}'.format(-fnc.log_log_like(param, tb, te,
+                                                     event, covars)))
+print('Final LLK: {:.2f}'.format(-fnc.log_log_like(sol_dyn, tb, te,
+                                                   event, covars)))
+print('\nParameters:')
+print('gamma =', gamma_dyn, '\np =', p_dyn, '\nCoupon Gap Coef =', beta_dyn[0],
+      '\nSummer Indicator =', beta_dyn[1])
+print('\nRespective Standard Errors:', ', '.join(
+        std_err_dyn.round(2).astype(str)))
+print('\nProportional Standard Errors:', ', '.join(prop_std_err_dyn.round(
+        1).astype(str)))
+# %%
+# Plot the baseline hazard rate
+t = np.linspace(0, 1, 100)
+expo = np.append(np.nan, (gamma_dyn*t[1:])**(p_dyn-1))
+lambda_0_dyn = gamma_dyn*p_dyn*expo/(1+(gamma_dyn*t)**p_dyn)
+folder = 'Plots'
+if not os.path.exists(folder):
+    os.makedirs(folder)
+
+plt.scatter(t, lambda_0_dyn)
+plt.grid(True)
+plt.xlabel('Time (years)')
+plt.ylabel('Baseline Hazard')
+plt.title(r'$\lambda_0(t)$')
+plt.savefig(os.path.join(folder, 'lambda_0_dyn.png'))
+# %%
