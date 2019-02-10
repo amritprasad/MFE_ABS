@@ -53,8 +53,9 @@ def log_log_grad(param, tb, te, event, covars):
     grad = [dlldg, dlldp]
 
     for i in range(0, len(coef)):
-        dlldc1 = sum(event*covars[:,i])
-        dlldc2 = sum((np.log(1+(g*te)**p)-np.log(1+(g*tb)**p))*np.exp(covars.dot(coef))*covars[:,i])
+        dlldc1 = sum(event*covars[:, i])
+        dlldc2 = sum((np.log(1+(g*te)**p)-np.log(1+(g*tb)**p))*np.exp(
+                covars.dot(coef))*covars[:, i])
         dlldc = -(dlldc1-dlldc2)
 
         grad.append(dlldc)
@@ -83,7 +84,8 @@ def log_log_like(param, tb, te, event, covars):
 
     # The following variables are vectors with a row for each episode
     # Log of baseline hazard
-    logh = (np.log(p) + np.log(g) + (p-1)*(np.log(g)+np.log(te)) - np.log(1+(g*te)**p))
+    logh = (np.log(p) + np.log(g) + (p-1)*(np.log(g)+np.log(te))
+            - np.log(1+(g*te)**p))
 
     logc = np.zeros(nentries)
     logF = -(np.log(1+(g*te)**p) - np.log(1+(g*tb)**p))
@@ -101,7 +103,6 @@ def log_log_like(param, tb, te, event, covars):
     # provide these derivatives so that the search algogrithm knows which direction
     # to search in.
 
-    grad = log_log_grad(param, tb, te, event, covars)
     global phist, cnt
 
     if cnt % (nparams+1) == 0:
@@ -109,4 +110,4 @@ def log_log_like(param, tb, te, event, covars):
 
     cnt += 1
 
-    return neglogL, grad
+    return neglogL
