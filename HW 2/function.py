@@ -9,6 +9,7 @@ Created on Fri Feb  8 17:32:44 2019
 import numpy as np
 
 phist = []
+gradhist = []
 cnt = 0
 
 
@@ -17,9 +18,6 @@ def log_log_grad(param, tb, te, event, covars):
     This function calculates the gradient of the log-likelihood for the
     proportional hazard model using the log-logistics baseline distribution
     """
-    tb = tb.flatten()
-    te = te.flatten()
-    event = event.flatten()
     g = param[0] # Amplitude of the baseline hazard; gamma in the notation
     p = param[1] # Shape of baseline hazard; p in the notation
     coef = param[2:] # Coefficients for covariates; beta in the notation
@@ -39,7 +37,10 @@ def log_log_grad(param, tb, te, event, covars):
     # generalize to the unconditional case when tb = 0. There is a singularity on
     # log(g*tb) for tb = 0.
 
-    ln_gtb = np.log(g*tb)
+    mask = tb == 0
+    ln_gtb = np.empty(tb.size)
+    ln_gtb[mask] = 0
+    ln_gtb[~mask] = np.log((g*tb)[~mask])
     ln_gtb[np.isposinf(ln_gtb)] = 0
     ln_gtb[np.isneginf(ln_gtb)] = 0
 
@@ -59,7 +60,10 @@ def log_log_grad(param, tb, te, event, covars):
         dlldc = -(dlldc1-dlldc2)
 
         grad.append(dlldc)
-    return np.array(grad)
+
+    grad = np.array(grad)
+
+    return grad
 
 
 def log_log_like(param, tb, te, event, covars):
@@ -71,11 +75,7 @@ def log_log_like(param, tb, te, event, covars):
     # tb=static_df['period_begin']/365;te=static_df['period_end']/365
     # event=static_df['prepay'];param=[0.1]*7
 
-    tb = tb.flatten()
-    te = te.flatten()
-    event = event.flatten()
     # Get the number of parameters
-    nparams = len(param)
     nentries = len(te)
 
     g = param[0]  # Amplitude of the baseline hazard; gamma in the notation
@@ -103,10 +103,11 @@ def log_log_like(param, tb, te, event, covars):
     # provide these derivatives so that the search algogrithm knows which direction
     # to search in.
 
-    global phist, cnt
+    global phist, cnt, gradhist
 
-    if cnt % (nparams+1) == 0:
-        phist.append(param)
+    grad = log_log_grad(param, tb, te, event, covars)
+    gradhist.append(grad)
+    phist.append(param)
 
     cnt += 1
 
