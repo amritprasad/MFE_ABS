@@ -1,6 +1,6 @@
 """
 MFE 230M
-Assignment 1
+Assignment 2
 """
 
 # Imports
@@ -114,8 +114,7 @@ zero_df.loc[zero_df.index[-1], 'DATE'] = zero_df.loc[
 discount_df = lib.discount_fac(zero_df)
 # Calculate theta_df
 theta_df = lib.hw_theta(kappa, sigma, discount_df, discount_df.index.min())
-# Calculate 10 yr rates
-tenyr_df = fnc.calc_tenor_rate(discount_df, tenor=120)
+
 
 # %%
 # Calculate Cash Flows for the two Mtge Poolscou
@@ -144,6 +143,7 @@ theta_df = lib.hw_theta(kappa, sigma, discount_df, settle_date)
 r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
 spot_simulate_df = lib.simulate_rate(m, theta_df, kappa, sigma, r0, antithetic=True)
 
+# Calculate 10 yr rates
 tenor_rate = fnc.calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, tenor)
 
 wac = (Pool1_wac+Pool2_wac)/2
