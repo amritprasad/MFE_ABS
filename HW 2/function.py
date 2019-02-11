@@ -117,7 +117,7 @@ def log_log_like(param, tb, te, event, covars):
     return neglogL
 
 
-def hw_B(kappa):
+def hw_B(kappa, delta_t):
     """
     Function to calculate B(t, T) according to the Hull-White model.
     B(t, T) = B(0, T-t)
@@ -125,16 +125,16 @@ def hw_B(kappa):
     Args:
         kappa (float)
 
+        delta_t (float): in years
+
     Returns:
-        pd.Series containing values for B. B[n/24] would work.
+        float B
     """
-    # Create 15 day gaps
-    t = np.linspace(0, 30, 721)
-    B = pd.Series((1 - np.exp(-kappa*t))/kappa, index=t)
+    B = (1 - np.exp(-kappa*delta_t))/kappa
     return B
 
 
-def hw_A(kappa, sigma, B, theta):
+def hw_A(kappa, sigma, theta, tenor):
     """
     Function to calculate A(t, T) according to the Hull-White model.
     A(t, T) = A(0, T-t)
@@ -142,17 +142,36 @@ def hw_A(kappa, sigma, B, theta):
     Args:
         kappa, sigma (float)
 
-        B (pd.Series)
-
         theta (pd.DataFrame)
 
+        tenor (int): in months
+
     Returns:
-        pd.Series containing values for A. A[n/24] would work.
+        pd.Series containing values for A for each month
     """
-    from scipy.integrate import quad
-    theta = theta['THETA']
-    theta.index = lib.t_dattime(theta.index.min(), theta.index, 'ACTby365')
-    return A
+    # theta=theta_df.copy(); tenor=120
+    # Convert theta index from dates to numerical to speed up estimation
+    old_index = theta.index
+    index = np.vectorize(lib.t_dattime)(old_index.min(), old_index, 'ACTby365')
+    theta.index = index
+    theta.reset_index(inplace=True)
+
+    index_diff = theta['index'].diff().shift(-1)
+    cumul_index_diff = index_diff.rolling(tenor).sum().shift(-tenor)
+    B = np.vectorize(hw_B)(kappa, index_diff)
+    integ = theta['THETA']*B
+    integ = integ.rolling(tenor).sum()
+    integ = integ.shift(-tenor)
+
+    non_integ = 0.5*(sigma/kappa)**2*(
+                cumul_index_diff + (1-np.exp(
+                        -2*kappa*cumul_index_diff))/2/kappa - 2*B)
+
+    A = pd.DataFrame(non_integ - integ, columns=['A'])
+    A['DATE'] = theta['index']
+    A['DATE'] = A['DATE'].map({key: val for key, val in zip(index, old_index)})
+    A.set_index('DATE', inplace=True)
+    return A['A']
 
 
 def calc_tenor_rate(spot_simulate_df, kappa, sigma, theta, tenor):
