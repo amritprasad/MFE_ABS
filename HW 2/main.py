@@ -32,9 +32,6 @@ filename = 'static.csv'
 filepath = os.path.join('.', data_folder, filename)
 static_df = pd.read_csv(filepath)
 # Estimate static parameters
-# Create normalized ratio of unpaid balance
-static_df['upb_ratio'] = static_df['Act_endg_upb'].divide(
-        static_df['orig_upb'])
 # Convert the percentage covariates to decimals
 per_cols = ['orig_dti', 'orig_ltv', 'cpn_gap']
 static_df[per_cols] /= 100
@@ -45,8 +42,8 @@ param = np.random.uniform(size=len(covar_cols) + 2)
 # param = np.array([0.01, 0.02, 0.2, 0.04])
 # Since the times are in months, convert them to yearly time to make them the
 # same units as the coupon gap
-tb = static_df['period_begin'].values/12
-te = static_df['period_end'].values/12
+tb = static_df['period_begin'].values
+te = static_df['period_end'].values
 event = static_df['prepay'].values
 
 eps = np.finfo(float).eps
@@ -74,13 +71,13 @@ print('Final LLK: {:.2f}'.format(-fnc.log_log_like(sol, tb, te,
 print('\nParameters:')
 print('gamma =', gamma, '\np =', p, '\nCoupon Gap Coef =', beta[0],
       '\nSummer Indicator =', beta[1])
-print('\nRespective Standard Errors:', ', '.join(std_err.round(2).astype(str)))
+print('\nRespective Standard Errors:', ', '.join(std_err.round(3).astype(str)))
 print('\nProportional Standard Errors:', ', '.join(prop_std_err.round(
         1).astype(str)))
 
 # %%
-# Plot the baseline hazard rate
-t = np.linspace(0, 30, 500)
+# Plot the baseline hazard rate for 10 years
+t = np.linspace(0, 120, 500)
 lambda_0 = gamma*p*((gamma*t)**(p-1))/(1 + (gamma*t)**p)
 folder = 'Plots'
 if not os.path.exists(folder):
@@ -88,7 +85,7 @@ if not os.path.exists(folder):
 
 plt.scatter(t, lambda_0)
 plt.grid(True)
-plt.xlabel('Time (years)')
+plt.xlabel('Time (months)')
 plt.ylabel('Baseline Hazard')
 plt.title(r'$\lambda_0(t)$')
 plt.savefig(os.path.join(folder, 'lambda_0.png'))
@@ -130,15 +127,15 @@ dynamic_df[per_cols] /= 100
 covar_cols = ['cpn_gap', 'summer']
 covars = dynamic_df[covar_cols].values
 # Provide guess = static estimation
-param = np.array([14.5, 2.1, 22.5, -2.4])
-tb = dynamic_df['period_begin'].values/12
-te = dynamic_df['period_end'].values/12
+param = np.array([0.045, 2.234, 0.696, -2.270])
+tb = dynamic_df['period_begin'].values
+te = dynamic_df['period_end'].values
 event = dynamic_df['prepay'].values
 
 eps = np.finfo(float).eps
 bounds = ((eps, None), (eps, None), (None, None), (None, None))
 
-# Run optimizer
+# Run optimizer. WARNING!!! MIGHT TAKE UPTO 15 min depending upon config
 res_dyn = minimize(fun=fnc.log_log_like, x0=param, args=(
         tb, te, event, covars), jac=fnc.log_log_grad, bounds=bounds,
                    method='L-BFGS-B', options={'disp': True})
@@ -163,7 +160,7 @@ print('\nParameters:')
 print('gamma =', gamma_dyn, '\np =', p_dyn, '\nCoupon Gap Coef =', beta_dyn[0],
       '\nSummer Indicator =', beta_dyn[1])
 print('\nRespective Standard Errors:', ', '.join(
-        std_err_dyn.round(2).astype(str)))
+        std_err_dyn.round(3).astype(str)))
 print('\nProportional Standard Errors:', ', '.join(prop_std_err_dyn.round(
         1).astype(str)))
 # %%
