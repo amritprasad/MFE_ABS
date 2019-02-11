@@ -139,7 +139,6 @@ def hw_B(kappa, delta_t):
 def hw_A(kappa, sigma, theta, tenor):
     """
     Function to calculate A(t, T) according to the Hull-White model.
-    A(t, T) = A(0, T-t)
 
     Args:
         kappa, sigma (float)
