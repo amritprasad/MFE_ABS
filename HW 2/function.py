@@ -8,6 +8,7 @@ import numpy as np
 
 # Import library
 import abslibrary as lib  # HW 1 library
+from numba import njit
 
 phist = []
 gradhist = []
@@ -218,86 +219,76 @@ def calc_hazard(gamma, p, beta, v1, v2):
     hazard_rate.index = v1.index
     return hazard_rate
 
+@njit
 def calc_bond_price(cf_bond, _r):
     r = _r.copy()
-    r = r.astype(float)
-    r = r[:len(cf_bond)]
-    r.index = cf_bond.index
+    #r = r.astype(float)
+    r = r[:cf_bond.shape[0]]
 
-    R = (cf_bond.sum(1).T*(np.exp(r/24)-1).T).T
+    R = (cf_bond.sum(1)*(np.exp(r/24)-1))
 
     r_cum = r.cumsum()
 
-    price_dict = {}
-    for i in cf_bond.columns:
-        price_dict[i] = (cf_bond[i].T/np.exp(r_cum/12).T).T.sum()
-    price_dict['R'] = (R/np.exp(r_cum/12)).sum()
+    price = np.zeros(cf_bond.shape[1]+1)
+    for i in range(price.shape[0]-1):
+        price[i] = (cf_bond[:,i]/np.exp(r_cum/12)).sum()
+    price[i+1] = (R/np.exp(r_cum/12)).sum()
 
-    price_ser = pd.Series(price_dict)
-    return price_ser
+    return price
 
-def calc_cashflow_mp(param):
-    SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,Pool2_mwac, Pool2_age, Pool2_term, coupon_rate = param
-    return calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
-                  Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
-
+@njit
 def calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
-                  Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
-    # pre-allocate arrays to hold pool cash flows
-    # 7 columns: PMT, Interest, Principal, Pre-pmt CPR, SMM, pp CF, Balance
-    cols = ['PMT', 'Interest', 'Principal', 'PP CF', 'Balance']
-    Pool1_data = pd.DataFrame(np.zeros((241, 5)), columns=cols)
-    Pool2_data = pd.DataFrame(np.zeros((241, 5)), columns=cols)
+                  Pool2_mwac, Pool2_age, Pool2_term, coupon_rate, Tranche_bal_arr):
+    # Pool cash flows arrays
+    # 5 columns: 
+    #0 PMT 
+    #1 Interest
+    #2 Principal 
+    #3 pp CF
+    #4 Balance
     
-    Pool1_data.loc[0, 'Balance'] = Pool1_bal
-    Pool2_data.loc[0, 'Balance'] = Pool2_bal
+    ### Define Tranche CF arrays outside to pre-allocate
+    # define Tranche CF array, Tranche x time x (Principal, Interest, Balance)
+    # Tranche order: 'CG', 'VE', 'CM', 'GZ', 'TC', 'CZ', 'CA', 'CY'
+    # Tranche order:    0,    1,    2,    3,    4,    5,    6,    7
+    Tranche_CF_arr = np.zeros((8,241,3))
+    for i in range(8):
+        Tranche_CF_arr[i,0,2] = Tranche_bal_arr[i]
+    
+    
+    #a=time.time()
+    Pool1_data = np.zeros((241, 5))
+    Pool2_data = np.zeros((241, 5))
+    
+    Pool1_data[0, 4] = Pool1_bal
+    Pool2_data[0, 4] = Pool2_bal
 
     lib.pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array)
     lib.pool_cf(Pool2_data, Pool2_mwac, Pool2_age, Pool2_term, SMM_array)
     
     # Reproduce Principal CF Allocation (waterfall)
-    Total_principal = Pool1_data['Principal'] + Pool2_data[
-            'Principal'] + Pool1_data['PP CF'] + Pool2_data['PP CF']
+    Total_principal = Pool1_data[:,2] + Pool2_data[
+            :,2] + Pool1_data[:,3] + Pool2_data[:,3]
     CA_CY_princ = 0.225181598 * Total_principal
     Rest_princ = 0.7748184 * Total_principal
-    
-    # Pre-Allocate for each Tranche, then do waterfall logic
-    Tranche_dict = {}
-    Tranche_list = ['CG', 'VE', 'CM', 'GZ', 'TC', 'CZ', 'CA', 'CY']
-    cols = ['Principal', 'Interest', 'Balance']
-    
-    Tranche_bal_dict = {
-                        'CG': 74800000,
-                        'VE': 5200000,
-                        'CM': 14000000,
-                        'GZ': 22000000,
-                        'TC': 20000000,
-                        'CZ': 24000000,
-                        'CA': 32550000,
-                        'CY': 13950000
-                       }
-    
-    # small for loop, pre-allocate data for tranches
-    for i in Tranche_list:
-        Tranche_dict[i] = pd.DataFrame(np.zeros((241, 3)), columns=cols)
-        Tranche_dict[i].loc[0, 'Balance'] = Tranche_bal_dict[i]
-    
+        
     # Temporary arrays for calculating GZ/CZ interest accrual. The "interest" here
-    # is not cash flow.
-    cols = ['interest', 'accrued']
-    GZ_interest = pd.DataFrame(np.zeros((241, 2)), columns=cols)
-    CZ_interest = pd.DataFrame(np.zeros((241, 2)), columns=cols)
+    # is not cash flow. 2 columns:
+    #interest 
+    #accrued
+    GZ_interest = np.zeros((241, 2))
+    CZ_interest = np.zeros((241, 2))
     
     # Calculate Cash flows
-    lib.tranche_CF_calc(Tranche_dict, CA_CY_princ, Rest_princ, GZ_interest,
+    # redefine giant Tranche_DF
+    lib.tranche_CF_calc(Tranche_CF_arr, CA_CY_princ, Rest_princ, GZ_interest,
                         CZ_interest, coupon_rate)
     
-    CF_df = pd.DataFrame(np.zeros((240, 8)), columns=list(Tranche_bal_dict.keys()))
-    for i in Tranche_bal_dict.keys():
-        CF_df[i] = Tranche_dict[i]['Principal'] + Tranche_dict[i]['Interest']
-        
+    CF_arr = np.zeros((241, 8))
+    for i in range(8):
+        CF_arr[:,i] = Tranche_CF_arr[i,:,0] + Tranche_CF_arr[i,:,1]
+    
+    #print(time.time()-a)
     # Calculate Bond price
-    cf_bond = CF_df.iloc[1:, :]
-    price = calc_bond_price(cf_bond, r)
+    price = calc_bond_price(CF_arr[1:, :], r)
     return price
-
