@@ -27,7 +27,7 @@ if py_ver[0][:3] != '3.7':
 # Static Estimation
 # a)
 # Load Data
-data_folder = r'C:\Users\willd\Dropbox\_MFE\230M ABS\Hw2'
+data_folder = 'Data'
 filename = 'static.csv'
 filepath = os.path.join('.', data_folder, filename)
 static_df = pd.read_csv(filepath)
@@ -96,7 +96,7 @@ plt.close()
 kappa, sigma = (0.1141813928341348, 0.01453600529450289)
 # Get discount factors
 # Load LIBOR Data
-data_folder = r'C:\Users\willd\Dropbox\_MFE\230M ABS\Hw2'
+data_folder = 'Data'
 filename = '20040830_usd23_atm_caps_jan_2019_update2.xlsx'
 filepath = os.path.join('.', data_folder, filename)
 libor_df = pd.read_excel(filepath, sheet_name='usd23_libor_curve', skiprows=3,
@@ -152,7 +152,7 @@ v1 = wac-tenor_rate
 v2 = v1.copy()*0.0
 v2[(v2.index.month>=5)&(v2.index.month<=8)] = 1
 
-smm_df = fnc.calc_hazard(gamma, p, beta, v1, v2) 
+smm_df = fnc.calc_hazard(gamma, p, beta, v1, v2)
 
 Tranche_bal_arr = np.array([
                          74800000, #CG
@@ -175,14 +175,14 @@ Tranche_bal_arr = np.array([
 #fnc.calc_cashflow(smm_df.T.values[0].astype(float), spot_simulate_df.T.values[0].astype(float), Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
 #                  Pool2_mwac, Pool2_age, Pool2_term, coupon_rate, Tranche_bal_arr)
 price_df = np.vectorize(fnc.calc_cashflow, signature='(n),(n),(),(),(),(),(),(),(),(),(),(k)->(m)')(
-                        smm_df.T.values.astype(float), spot_simulate_df.T.values.astype(float), 
+                        smm_df.T.values.astype(float), spot_simulate_df.T.values.astype(float),
                         Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
                         Pool2_mwac, Pool2_age, Pool2_term, coupon_rate,Tranche_bal_arr)
 pd.DataFrame(price_df).mean()
 #print(time.time()-a)
 
 assert(False)
-    
+
 price_mean = price_df.sum(1)
 
 # %% Calculate Standard Errors, Duration, Convexity, and OAS
