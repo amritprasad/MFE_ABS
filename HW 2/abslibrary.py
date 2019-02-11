@@ -387,7 +387,8 @@ def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
         deltar = (theta_df.iloc[i, 0]-spot_simulate_df.iloc[
                 i-1]*kappa)*deltat+sigma*deltax
         spot_simulate_df.iloc[i] = spot_simulate_df.iloc[i-1]+deltar
-    spot_simulate_df.index = range(1, len(spot_simulate_df)+1)
+    spot_simulate_df.index = theta_df.index
+    #spot_simulate_df.index = range(1, len(spot_simulate_df)+1)
     return spot_simulate_df
 
 

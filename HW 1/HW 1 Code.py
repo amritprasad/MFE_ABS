@@ -211,7 +211,7 @@ PSA = 1.50
 # Calculate Cash Flows for the two Mtge Pools
 CPR_array = lib.cpr(PSA, .06, 241, 3)  # hard coded parameters
 SMM_array = 1 - (1-CPR_array)**(1/12)
-
+assert(False)
 # pre-allocate arrays to hold pool cash flows
 # 7 columns: PMT, Interest, Principal, Pre-pmt CPR, SMM, pp CF, Balance
 cols = ['PMT', 'Interest', 'Principal', 'PP CF', 'Balance']

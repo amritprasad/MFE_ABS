@@ -155,32 +155,56 @@ def hw_A(kappa, sigma, B, theta):
     return A
 
 
-def calc_tenor_rate(_discount_df, tenor):
+def calc_tenor_rate(spot_simulate_df, kappa, sigma, theta, tenor):
     """
     Function to calculate the rates corresponding to the tenor
 
     Args:
-        _discount_df (pd.DataFrame): contains discount factors
+        spot_simulate_df (pd.DataFrame): contains simulated spot rate
+
+        kappa: float
+        
+        sigma: float
+        
+        theta(pd.DataFrame)
 
         tenor (int): in months
 
     Returns:
         pd.DataFrame containing tenor rates
     """
-    discount_df = _discount_df.copy()
-    i = 0
-    start_date = discount_df.index[i]
-    end_date = start_date + pd.DateOffset(months=tenor)
-    tenor_df = pd.DataFrame(columns=['%s_YR_RATE' % str(int(tenor/12))])
+    _spot_simulate_df = spot_simulate_df.copy()
+    _spot_simulate_df.index = theta.index
+    A = hw_A(kappa, sigma, theta, tenor)
+    part1 = -A/tenor
+    part2 = 1/kappa*(1-np.exp(-kappa*tenor))/tenor*_spot_simulate_df
 
-    while end_date <= discount_df.index.max():
-        start_disc = discount_df.iloc[i, 0]
-        end_disc = discount_df.asof(end_date)[0]
-        tenor_df.loc[start_date] = 12*np.log(start_disc/end_disc)/tenor
-        i += 1
-        start_date = discount_df.index[i]
-        end_date = start_date + pd.DateOffset(months=tenor)
+    return part1 + part2
 
-    tenor_df.index.name = 'DATE'
 
-    return tenor_df
+def calc_hazard(gamma, p, beta, v1, v2):
+    """
+    Function to give us CPR schedule
+    """
+    _v1 = v1.copy()
+    _v1.index = range(len(v1))
+    _v2 = v2.copy()
+    _v2.index = range(len(v2))
+    part1 = (gamma*p)*(gamma*_v1.index)**(p-1)/(1+(gamma*_v1.index)**p)
+    part2 = np.exp(beta[0]*_v1+beta[1]*_v2)
+    hazard_rate = part1*part2
+    hazard_rate.index = v1.index
+    return hazard_rate
+
+def calc_bond_price(cf_bond, r):
+    R = (cf_bond.sum(1).T*(np.exp(r/24)-1).T).T
+
+    r_cum = r.cumsum()
+
+    price_dict = {}
+    for i in cf_bond.columns:
+        price_dict[i] = (cf_bond[i].T/np.exp(r_cum/12).T).T.sum()
+    price_dict['R'] = (R/np.exp(r_cum/12)).sum()
+
+    price_ser = pd.Series(price_dict)
+    return price_ser
