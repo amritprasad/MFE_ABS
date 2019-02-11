@@ -157,15 +157,16 @@ def hw_A(kappa, sigma, theta, tenor):
     theta.reset_index(inplace=True)
 
     index_diff = theta['index'].diff().shift(-1)
-    cumul_index_diff = index_diff.rolling(tenor).sum().shift(-tenor)
+    cumul_index_diff = index_diff.rolling(tenor).sum().shift(-tenor+1)
     B = np.vectorize(hw_B)(kappa, index_diff)
     integ = theta['THETA']*B
     integ = integ.rolling(tenor).sum()
-    integ = integ.shift(-tenor)
+    integ = integ.shift(-tenor+1)
 
+    B_tenor = np.vectorize(hw_B)(kappa, cumul_index_diff)
     non_integ = 0.5*(sigma/kappa)**2*(
                 cumul_index_diff + (1-np.exp(
-                        -2*kappa*cumul_index_diff))/2/kappa - 2*B)
+                        -2*kappa*cumul_index_diff))/2/kappa - 2*B_tenor)
 
     A = pd.DataFrame(non_integ - integ, columns=['A'])
     A['DATE'] = theta['index']
