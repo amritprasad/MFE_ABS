@@ -11,6 +11,8 @@ import sys
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import toolz
+import datetime
+from multiprocessing import Pool
 
 # Import library
 import abslibrary as lib  # HW 1 library
@@ -134,7 +136,7 @@ Pool1_age = 3
 Pool2_age = 3
 coupon_rate = .05/12
 
-m = 100
+m = 1000
 tenor = 10
 
 settle_date = discount_df.index[0]
@@ -154,13 +156,31 @@ v2[(v2.index.month>=5)&(v2.index.month<=8)] = 1
 
 smm_df = fnc.calc_hazard(gamma, p, beta, v1, v2) 
     
-price_df = np.vectorize(fnc.calc_cashflow, signature='(n),(n),(),(),(),(),(),(),(),(),()->(m)')(smm_df.T.values, spot_simulate_df.T.values, Pool1_bal, 
+
+start = datetime.datetime.now()
+#price_df = np.vectorize(fnc.calc_cashflow, signature='(n),(n),(),(),(),(),(),(),(),(),()->(m)')(smm_df.T.values, spot_simulate_df.T.values, Pool1_bal, 
+#                       Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+#                       Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+
+param_list = []
+for column in spot_simulate_df.columns:
+    param_list.append([spot_simulate_df[column], spot_simulate_df[column], Pool1_bal, 
                        Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
-                       Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+                       Pool2_mwac, Pool2_age, Pool2_term, coupon_rate])
+
+p = Pool(100)
+result = p.map(fnc.calc_cashflow_mp, param_list)
+p.close()
+p.join()
+
+end = datetime.datetime.now()
+print(end-start)
+    
+#price_mean = price_df.sum(1)
+
+
 
 assert(False)
-    
-price_mean = price_df.sum(1)
 
 # %% Calculate Standard Errors, Duration, Convexity, and OAS
 price_df_MC = lib.mc_bond(m, cf_bond, theta_df, kappa, sigma, r0,
@@ -171,7 +191,7 @@ price_std_MC = price_df_MC.std()/np.sqrt(len(price_df_MC))
 duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa,
                                                   sigma, r0, antithetic=True)
 
-oas_ser = lib.calc_OAS(cf_bond, zero_df)
+oas_ser = fnc.calc_OAS_avr(spot_simulate_df, kappa, sigma, theta_df, tenor)
 
 # %%
 # Dynamic Estimation

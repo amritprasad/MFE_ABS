@@ -222,6 +222,7 @@ def calc_bond_price(cf_bond, _r):
     r = _r.copy()
     r = r.astype(float)
     r = r[:len(cf_bond)]
+    r.index = cf_bond.index
 
     R = (cf_bond.sum(1).T*(np.exp(r/24)-1).T).T
 
@@ -234,6 +235,11 @@ def calc_bond_price(cf_bond, _r):
 
     price_ser = pd.Series(price_dict)
     return price_ser
+
+def calc_cashflow_mp(param):
+    SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,Pool2_mwac, Pool2_age, Pool2_term, coupon_rate = param
+    return calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+                  Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
 
 def calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
                   Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
@@ -249,7 +255,6 @@ def calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Poo
     lib.pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array)
     lib.pool_cf(Pool2_data, Pool2_mwac, Pool2_age, Pool2_term, SMM_array)
     
-    # %%
     # Reproduce Principal CF Allocation (waterfall)
     Total_principal = Pool1_data['Principal'] + Pool2_data[
             'Principal'] + Pool1_data['PP CF'] + Pool2_data['PP CF']
@@ -295,3 +300,4 @@ def calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Poo
     cf_bond = CF_df.iloc[1:, :]
     price = calc_bond_price(cf_bond, r)
     return price
+
