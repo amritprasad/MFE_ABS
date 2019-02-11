@@ -192,13 +192,14 @@ def calc_tenor_rate(spot_simulate_df, kappa, sigma, theta, tenor):
     Returns:
         pd.DataFrame containing tenor rates
     """
+    _theta = theta.copy()
     _spot_simulate_df = spot_simulate_df.copy()
     _spot_simulate_df.index = theta.index
-    A = hw_A(kappa, sigma, theta, tenor)
+    A = hw_A(kappa, sigma, _theta, tenor)
     part1 = -A/tenor
     part2 = 1/kappa*(1-np.exp(-kappa*tenor))/tenor*_spot_simulate_df
 
-    return part1 + part2
+    return (part1 + part2.T).T
 
 
 def calc_hazard(gamma, p, beta, v1, v2):
@@ -209,13 +210,19 @@ def calc_hazard(gamma, p, beta, v1, v2):
     _v1.index = range(len(v1))
     _v2 = v2.copy()
     _v2.index = range(len(v2))
-    part1 = (gamma*p)*(gamma*_v1.index)**(p-1)/(1+(gamma*_v1.index)**p)
-    part2 = np.exp(beta[0]*_v1+beta[1]*_v2)
-    hazard_rate = part1*part2
+    part1 = pd.Series((gamma*p)*(gamma*_v1.index)**(p-1)/(1+(gamma*_v1.index)**p), index = _v1.index)
+    part2 = beta[0]*_v1+beta[1]*_v2
+    part3 = np.exp(part2.astype(float))
+    hazard_rate = (part1*part3.T).T
     hazard_rate.index = v1.index
     return hazard_rate
 
-def calc_bond_price(cf_bond, r):
+def calc_bond_price(cf_bond, _r):
+    r = _r.copy()
+    r = r.astype(float)
+    r = r.iloc[:len(cf_bond)]
+    r.index = cf_bond.index
+    
     R = (cf_bond.sum(1).T*(np.exp(r/24)-1).T).T
 
     r_cum = r.cumsum()

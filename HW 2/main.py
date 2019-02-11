@@ -155,7 +155,6 @@ v2[(v2.index.month>=5)&(v2.index.month<=8)] = 1
 smm_df = fnc.calc_hazard(gamma, p, beta, v1, v2) 
 
 price_dict = {}
-
 for column in smm_df.columns:
     
     # pre-allocate arrays to hold pool cash flows
