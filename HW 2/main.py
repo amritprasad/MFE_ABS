@@ -89,6 +89,7 @@ plt.xlabel('Time (months)')
 plt.ylabel('Baseline Hazard')
 plt.title(r'$\lambda_0(t)$')
 plt.savefig(os.path.join(folder, 'lambda_0.png'))
+plt.close()
 # %%
 # b), c)
 # Get Hull-White parameters from HW 1
@@ -111,6 +112,8 @@ zero_df.loc[zero_df.index[-1], 'DATE'] = zero_df.loc[
         zero_df.index[-2], 'DATE'] + pd.DateOffset(months=3)
 # Calculate discount rates
 discount_df = lib.discount_fac(zero_df)
+# Calculate theta_df
+theta_df = lib.hw_theta(kappa, sigma, discount_df, discount_df.index.min())
 # Calculate 10 yr rates
 tenyr_df = fnc.calc_tenor_rate(discount_df, tenor=120)
 
@@ -244,7 +247,7 @@ dynamic_df[per_cols] /= 100
 covar_cols = ['cpn_gap', 'summer']
 covars = dynamic_df[covar_cols].values
 # Provide guess = static estimation
-param = np.array([0.045, 2.234, 0.696, -2.270])
+param = np.array([0.013, 1.37, 0.72, 0.23])
 tb = dynamic_df['period_begin'].values
 te = dynamic_df['period_end'].values
 event = dynamic_df['prepay'].values
@@ -281,18 +284,20 @@ print('\nRespective Standard Errors:', ', '.join(
 print('\nProportional Standard Errors:', ', '.join(prop_std_err_dyn.round(
         1).astype(str)))
 # %%
-# Plot the baseline hazard rate
-t = np.linspace(0, 30, 100)
-expo = np.append(np.nan, (gamma_dyn*t[1:])**(p_dyn-1))
+# Plot the baseline hazard rate for 10 years
+t = np.linspace(0, 120, 500)
+expo = (gamma_dyn*t)**(p_dyn-1)
 lambda_0_dyn = gamma_dyn*p_dyn*expo/(1+(gamma_dyn*t)**p_dyn)
 folder = 'Plots'
 if not os.path.exists(folder):
     os.makedirs(folder)
 
+plt.clf()
 plt.scatter(t, lambda_0_dyn)
 plt.grid(True)
-plt.xlabel('Time (years)')
+plt.xlabel('Time (months)')
 plt.ylabel('Baseline Hazard')
 plt.title(r'$\lambda_0(t)$')
 plt.savefig(os.path.join(folder, 'lambda_0_dyn.png'))
+plt.close()
 # %%
