@@ -183,9 +183,9 @@ def calc_tenor_rate(spot_simulate_df, kappa, sigma, theta, tenor):
         spot_simulate_df (pd.DataFrame): contains simulated spot rate
 
         kappa: float
-        
+
         sigma: float
-        
+
         theta(pd.DataFrame)
 
         tenor (int): in months
@@ -223,7 +223,7 @@ def calc_bond_price(cf_bond, _r):
     r = r.astype(float)
     r = r.iloc[:len(cf_bond)]
     r.index = cf_bond.index
-    
+
     R = (cf_bond.sum(1).T*(np.exp(r/24)-1).T).T
 
     r_cum = r.cumsum()
