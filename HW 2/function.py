@@ -5,6 +5,7 @@ Library of functions (HW 2)
 # Imports
 import pandas as pd
 import numpy as np
+import scipy
 
 # Import library
 import abslibrary as lib  # HW 1 library
@@ -240,13 +241,13 @@ def calc_bond_price(cf_bond, _r):
 def calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
                   Pool2_mwac, Pool2_age, Pool2_term, coupon_rate, Tranche_bal_arr):
     # Pool cash flows arrays
-    # 5 columns: 
-    #0 PMT 
+    # 5 columns:
+    #0 PMT
     #1 Interest
-    #2 Principal 
+    #2 Principal
     #3 pp CF
     #4 Balance
-    
+
     ### Define Tranche CF arrays outside to pre-allocate
     # define Tranche CF array, Tranche x time x (Principal, Interest, Balance)
     # Tranche order: 'CG', 'VE', 'CM', 'GZ', 'TC', 'CZ', 'CA', 'CY'
@@ -254,41 +255,217 @@ def calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Poo
     Tranche_CF_arr = np.zeros((8,241,3))
     for i in range(8):
         Tranche_CF_arr[i,0,2] = Tranche_bal_arr[i]
-    
-    
+
+
     #a=time.time()
     Pool1_data = np.zeros((241, 5))
     Pool2_data = np.zeros((241, 5))
-    
+
     Pool1_data[0, 4] = Pool1_bal
     Pool2_data[0, 4] = Pool2_bal
 
     lib.pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array)
     lib.pool_cf(Pool2_data, Pool2_mwac, Pool2_age, Pool2_term, SMM_array)
-    
+
     # Reproduce Principal CF Allocation (waterfall)
     Total_principal = Pool1_data[:,2] + Pool2_data[
             :,2] + Pool1_data[:,3] + Pool2_data[:,3]
     CA_CY_princ = 0.225181598 * Total_principal
     Rest_princ = 0.7748184 * Total_principal
-        
+
     # Temporary arrays for calculating GZ/CZ interest accrual. The "interest" here
     # is not cash flow. 2 columns:
-    #interest 
+    #interest
     #accrued
     GZ_interest = np.zeros((241, 2))
     CZ_interest = np.zeros((241, 2))
-    
+
     # Calculate Cash flows
     # redefine giant Tranche_DF
     lib.tranche_CF_calc(Tranche_CF_arr, CA_CY_princ, Rest_princ, GZ_interest,
                         CZ_interest, coupon_rate)
-    
+
     CF_arr = np.zeros((241, 8))
     for i in range(8):
         CF_arr[:,i] = Tranche_CF_arr[i,:,0] + Tranche_CF_arr[i,:,1]
-    
+
     #print(time.time()-a)
     # Calculate Bond price
     price = calc_bond_price(CF_arr[1:, :], r)
     return price
+
+def mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
+    spot_simulate_df = lib.simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
+
+    # Calculate 10 yr rates
+    tenor_rate = calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, tenor)
+
+    v1 = wac-tenor_rate
+    v2 = v1.copy()*0.0
+    v2[(v2.index.month>=5)&(v2.index.month<=8)] = 1
+
+    smm_df = calc_hazard(gamma, p, beta, v1, v2)
+
+    price_df = np.vectorize(calc_cashflow, signature='(n),(n),(),(),(),(),(),(),(),(),(),(k)->(m)')(
+                            smm_df.T.values.astype(float), spot_simulate_df.T.values.astype(float),
+                            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+                            Pool2_mwac, Pool2_age, Pool2_term, coupon_rate,Tranche_bal_arr)
+    price_df = pd.DataFrame(price_df, columns=bond_list)
+
+    return price_df
+
+def calc_duration_convexity(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
+    deltar = 0.0025
+    price_pos = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0+deltar, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                        Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate).mean()
+    price = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                    Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate).mean()
+    price_neg = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0-deltar, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                        Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate).mean()
+    duration = (price_neg-price_pos)/price/2/deltar
+    convexity = (price_pos+price_neg-price*2)/price/deltar**2
+    return duration, convexity
+
+def calc_cashflow_CA(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+                     Pool2_mwac, Pool2_age, Pool2_term, coupon_rate, Tranche_bal_arr):
+    # Pool cash flows arrays
+    # 5 columns:
+    #0 PMT
+    #1 Interest
+    #2 Principal
+    #3 pp CF
+    #4 Balance
+
+    ### Define Tranche CF arrays outside to pre-allocate
+    # define Tranche CF array, Tranche x time x (Principal, Interest, Balance)
+    # Tranche order: 'CG', 'VE', 'CM', 'GZ', 'TC', 'CZ', 'CA', 'CY'
+    # Tranche order:    0,    1,    2,    3,    4,    5,    6,    7
+    Tranche_CF_arr = np.zeros((8,241,3))
+    for i in range(8):
+        Tranche_CF_arr[i,0,2] = Tranche_bal_arr[i]
+
+
+    #a=time.time()
+    Pool1_data = np.zeros((241, 5))
+    Pool2_data = np.zeros((241, 5))
+
+    Pool1_data[0, 4] = Pool1_bal
+    Pool2_data[0, 4] = Pool2_bal
+
+    lib.pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array)
+    lib.pool_cf(Pool2_data, Pool2_mwac, Pool2_age, Pool2_term, SMM_array)
+
+    # Reproduce Principal CF Allocation (waterfall)
+    Total_principal = Pool1_data[:,2] + Pool2_data[
+            :,2] + Pool1_data[:,3] + Pool2_data[:,3]
+    CA_CY_princ = 0.225181598 * Total_principal
+    Rest_princ = 0.7748184 * Total_principal
+
+    # Temporary arrays for calculating GZ/CZ interest accrual. The "interest" here
+    # is not cash flow. 2 columns:
+    #interest
+    #accrued
+    GZ_interest = np.zeros((241, 2))
+    CZ_interest = np.zeros((241, 2))
+
+    # Calculate Cash flows
+    # redefine giant Tranche_DF
+    lib.tranche_CF_calc(Tranche_CF_arr, CA_CY_princ, Rest_princ, GZ_interest,
+                        CZ_interest, coupon_rate)
+
+    CF_arr = np.zeros((241, 8))
+    for i in range(8):
+        CF_arr[:,i] = Tranche_CF_arr[i,:,0] + Tranche_CF_arr[i,:,1]
+
+    return CF_arr[:,-2]
+
+def calc_OAS(zero_df, m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+             Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
+    spot_simulate_df = lib.simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
+
+    # Calculate 10 yr rates
+    tenor_rate = calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, tenor)
+
+    v1 = wac-tenor_rate
+    v2 = v1.copy()*0.0
+    v2[(v2.index.month>=5)&(v2.index.month<=8)] = 1
+
+    smm_df = calc_hazard(gamma, p, beta, v1, v2)
+
+    cash_ser = np.vectorize(calc_cashflow_CA, signature='(n),(n),(),(),(),(),(),(),(),(),(),(k)->(m)')(
+                            smm_df.T.values.astype(float), spot_simulate_df.T.values.astype(float),
+                            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+                            Pool2_mwac, Pool2_age, Pool2_term, coupon_rate,Tranche_bal_arr)
+
+    cash_ser = pd.DataFrame(cash_ser).mean()
+
+    _zero_df = zero_df.copy()
+    _zero_df.index = _zero_df['DATE']
+    _zero_df = _zero_df[['ZERO']]
+    _zero_df = _zero_df.resample('1MS').interpolate(method='index')
+    _zero_df['DATE'] = _zero_df.index
+    r0 = 0
+    oas = scipy.optimize.fsolve(calc_PV_diff, r0, args=(cash_ser, _zero_df, Tranche_bal_arr[-2]))[0]
+    return oas
+
+def calc_PV_diff(r, cf, zero_df, par):
+    _zero_df = zero_df.copy()
+    _zero_df['ZERO'] = _zero_df['ZERO']+r
+    discount_df = discount_fac(_zero_df)
+    discount_df.index = range(0, len(discount_df))
+    pv = (discount_df.iloc[:, 0]*cf).sum()
+    # print(pv-par)
+    return pv-par
+
+def t_dattime(d0, d1, convention):
+    """
+    Function to calculate time in annual terms given convention
+
+    Args:
+        d0, d1: date formats that can be converted to pd.Timestamp
+
+        convention (str): '30by360', 'ACTby360', 'ACTby365'
+
+    Returns:
+        float
+    """
+    # Convert to pd.Timestamp
+    d0, d1 = pd.Timestamp(d0), pd.Timestamp(d1)
+    if convention == '30by360':
+        days_30by360 = 360*(d1.year - d0.year) + 30*(d1.month - d0.month) +\
+            (d1.day - d0.day)
+        return days_30by360/360
+    elif convention == 'ACTby360':
+        days_ACT = (d1 - d0).days
+        return days_ACT/360
+    elif convention == 'ACTby365':
+        days_ACT = (d1 - d0).days
+        return days_ACT/365
+    else:
+        raise ValueError('%s convention has not been implemented' % convention)
+
+
+def discount_fac(_zero_df):
+    """
+    Function to calculate the discount rates given the zero rates. Columns
+    should be DATE and ZERO
+
+    Args:
+        _zero_df (pd.DataFrame)
+
+    Returns:
+        pd.DataFrame containing discount factors between index_t and index_0.
+        Index is DATE and DISCOUNT contains discount factors
+    """
+    # Create deep copy to avoid modifying the original df passed
+    zero_df = _zero_df.copy()
+    # Calculate T_i
+    T_i = np.vectorize(t_dattime)(zero_df['DATE'].min(), zero_df['DATE'],
+                                  '30by360')
+    # Create discount df
+    discount_df = pd.DataFrame(((1 + zero_df['ZERO']/2)**(-2*T_i)).values,
+                               index=zero_df['DATE'],
+                               columns=['DISCOUNT'])
+    return discount_df

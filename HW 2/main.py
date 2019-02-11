@@ -134,26 +134,7 @@ Pool1_age = 3
 Pool2_age = 3
 coupon_rate = .05/12
 
-m = 10000
-tenor = 10
-
-settle_date = discount_df.index[0]
-theta_df = lib.hw_theta(kappa, sigma, discount_df, settle_date)
-
-r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
-spot_simulate_df = lib.simulate_rate(m, theta_df, kappa, sigma, r0, antithetic=True)
-
-# Calculate 10 yr rates
-tenor_rate = fnc.calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, tenor)
-
-wac = (Pool1_wac+Pool2_wac)/2
-
-v1 = wac-tenor_rate
-v2 = v1.copy()*0.0
-v2[(v2.index.month>=5)&(v2.index.month<=8)] = 1
-
-smm_df = fnc.calc_hazard(gamma, p, beta, v1, v2)
-
+bond_list = ['CG','VE','CM','GZ','TC','CZ','CA','CY','R']
 Tranche_bal_arr = np.array([
                          74800000, #CG
                          5200000,  #VE
@@ -165,36 +146,30 @@ Tranche_bal_arr = np.array([
                          13950000  #CY
                          ])# initial Balance
 
-#%%
+wac = (Pool1_wac+Pool2_wac)/2
+
+m = 10000
+tenor = 10
+antithetic = True
+
+settle_date = discount_df.index[0]
+theta_df = lib.hw_theta(kappa, sigma, discount_df, settle_date)
+
+r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
+
+price_df = fnc.mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                    Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+price_df = pd.DataFrame(price_df, columns=bond_list)
+price_mean = price_df.mean()
+price_std = price_df.std()/np.sqrt(len(price_df))
 
 
-#
-#import time
-#a=time.time()
-#
-#fnc.calc_cashflow(smm_df.T.values[0].astype(float), spot_simulate_df.T.values[0].astype(float), Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
-#                  Pool2_mwac, Pool2_age, Pool2_term, coupon_rate, Tranche_bal_arr)
-price_df = np.vectorize(fnc.calc_cashflow, signature='(n),(n),(),(),(),(),(),(),(),(),(),(k)->(m)')(
-                        smm_df.T.values.astype(float), spot_simulate_df.T.values.astype(float),
-                        Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
-                        Pool2_mwac, Pool2_age, Pool2_term, coupon_rate,Tranche_bal_arr)
-pd.DataFrame(price_df).mean()
-#print(time.time()-a)
+# %% Calculate Duration, Convexity, and OAS
+duration, convexity = fnc.calc_duration_convexity(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                                                 Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
 
-assert(False)
-
-price_mean = price_df.sum(1)
-
-# %% Calculate Standard Errors, Duration, Convexity, and OAS
-price_df_MC = lib.mc_bond(m, cf_bond, theta_df, kappa, sigma, r0,
-                          antithetic=True)
-price_mean_MC = price_df_MC.mean()
-price_std_MC = price_df_MC.std()/np.sqrt(len(price_df_MC))
-
-duration, convexity = lib.calc_duration_convexity(m, cf_bond, theta_df, kappa,
-                                                  sigma, r0, antithetic=True)
-
-oas_ser = lib.calc_OAS(cf_bond, zero_df)
+oas = fnc.calc_OAS(zero_df, m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                   Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
 
 # %%
 # Dynamic Estimation
@@ -264,3 +239,17 @@ plt.title(r'$\lambda_0(t)$')
 plt.savefig(os.path.join(folder, 'lambda_0_dyn.png'))
 plt.close()
 # %%
+#e)
+price_df_dyn = fnc.mc_bond(m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                           Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+price_df_dyn = pd.DataFrame(price_df_dyn, columns=bond_list)
+price_mean_dyn = price_df_dyn.mean()
+price_std_dyn = price_df_dyn.std()/np.sqrt(len(price_df_dyn))
+
+
+# %% Calculate Duration, Convexity, and OAS
+duration_dyn, convexity_dyn = fnc.calc_duration_convexity(m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                                                          Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+
+oas = fnc.calc_OAS(zero_df, m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                   Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
