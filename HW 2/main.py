@@ -134,7 +134,7 @@ Pool1_age = 3
 Pool2_age = 3
 coupon_rate = .05/12
 
-m = 10000
+m = 100
 tenor = 10
 
 settle_date = discount_df.index[0]
@@ -153,72 +153,13 @@ v2 = v1.copy()*0.0
 v2[(v2.index.month>=5)&(v2.index.month<=8)] = 1
 
 smm_df = fnc.calc_hazard(gamma, p, beta, v1, v2) 
+    
+price_df = np.vectorize(fnc.calc_cashflow, signature='(n),(n),(),(),(),(),(),(),(),(),()->(m)')(smm_df.T.values, spot_simulate_df.T.values, Pool1_bal, 
+                       Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+                       Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
 
-price_dict = {}
-for column in smm_df.columns:
+assert(False)
     
-    # pre-allocate arrays to hold pool cash flows
-    # 7 columns: PMT, Interest, Principal, Pre-pmt CPR, SMM, pp CF, Balance
-    cols = ['PMT', 'Interest', 'Principal', 'PP CF', 'Balance']
-    Pool1_data = pd.DataFrame(np.zeros((241, 5)), columns=cols)
-    Pool2_data = pd.DataFrame(np.zeros((241, 5)), columns=cols)
-    
-    Pool1_data.loc[0, 'Balance'] = Pool1_bal
-    Pool2_data.loc[0, 'Balance'] = Pool2_bal
-    SMM_array = smm_df[column].values
-    lib.pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array)
-    lib.pool_cf(Pool2_data, Pool2_mwac, Pool2_age, Pool2_term, SMM_array)
-    
-    # %%
-    # Reproduce Principal CF Allocation (waterfall)
-    Total_principal = Pool1_data['Principal'] + Pool2_data[
-            'Principal'] + Pool1_data['PP CF'] + Pool2_data['PP CF']
-    CA_CY_princ = 0.225181598 * Total_principal
-    Rest_princ = 0.7748184 * Total_principal
-    
-    # Pre-Allocate for each Tranche, then do waterfall logic
-    Tranche_dict = {}
-    Tranche_list = ['CG', 'VE', 'CM', 'GZ', 'TC', 'CZ', 'CA', 'CY']
-    cols = ['Principal', 'Interest', 'Balance']
-    
-    Tranche_bal_dict = {
-                        'CG': 74800000,
-                        'VE': 5200000,
-                        'CM': 14000000,
-                        'GZ': 22000000,
-                        'TC': 20000000,
-                        'CZ': 24000000,
-                        'CA': 32550000,
-                        'CY': 13950000
-                       }
-    
-    # small for loop, pre-allocate data for tranches
-    for i in Tranche_list:
-        Tranche_dict[i] = pd.DataFrame(np.zeros((241, 3)), columns=cols)
-        Tranche_dict[i].loc[0, 'Balance'] = Tranche_bal_dict[i]
-    
-    # Temporary arrays for calculating GZ/CZ interest accrual. The "interest" here
-    # is not cash flow.
-    cols = ['interest', 'accrued']
-    GZ_interest = pd.DataFrame(np.zeros((241, 2)), columns=cols)
-    CZ_interest = pd.DataFrame(np.zeros((241, 2)), columns=cols)
-    
-    # Calculate Cash flows
-    lib.tranche_CF_calc(Tranche_dict, CA_CY_princ, Rest_princ, GZ_interest,
-                        CZ_interest, coupon_rate)
-    
-    CF_df = pd.DataFrame(np.zeros((240, 8)), columns=list(Tranche_bal_dict.keys()))
-    for i in Tranche_bal_dict.keys():
-        CF_df[i] = Tranche_dict[i]['Principal'] + Tranche_dict[i]['Interest']
-        
-    # Calculate Bond price
-    cf_bond = CF_df.iloc[1:, :]
-    r = spot_simulate_df[column]
-    price = fnc.calc_bond_price(cf_bond, r)
-    
-    price_dict[column] = price
-    
-price_df = pd.DataFrame(price_dict)
 price_mean = price_df.sum(1)
 
 # %% Calculate Standard Errors, Duration, Convexity, and OAS

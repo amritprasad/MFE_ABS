@@ -221,8 +221,7 @@ def calc_hazard(gamma, p, beta, v1, v2):
 def calc_bond_price(cf_bond, _r):
     r = _r.copy()
     r = r.astype(float)
-    r = r.iloc[:len(cf_bond)]
-    r.index = cf_bond.index
+    r = r[:len(cf_bond)]
 
     R = (cf_bond.sum(1).T*(np.exp(r/24)-1).T).T
 
@@ -235,3 +234,64 @@ def calc_bond_price(cf_bond, _r):
 
     price_ser = pd.Series(price_dict)
     return price_ser
+
+def calc_cashflow(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+                  Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
+    # pre-allocate arrays to hold pool cash flows
+    # 7 columns: PMT, Interest, Principal, Pre-pmt CPR, SMM, pp CF, Balance
+    cols = ['PMT', 'Interest', 'Principal', 'PP CF', 'Balance']
+    Pool1_data = pd.DataFrame(np.zeros((241, 5)), columns=cols)
+    Pool2_data = pd.DataFrame(np.zeros((241, 5)), columns=cols)
+    
+    Pool1_data.loc[0, 'Balance'] = Pool1_bal
+    Pool2_data.loc[0, 'Balance'] = Pool2_bal
+
+    lib.pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array)
+    lib.pool_cf(Pool2_data, Pool2_mwac, Pool2_age, Pool2_term, SMM_array)
+    
+    # %%
+    # Reproduce Principal CF Allocation (waterfall)
+    Total_principal = Pool1_data['Principal'] + Pool2_data[
+            'Principal'] + Pool1_data['PP CF'] + Pool2_data['PP CF']
+    CA_CY_princ = 0.225181598 * Total_principal
+    Rest_princ = 0.7748184 * Total_principal
+    
+    # Pre-Allocate for each Tranche, then do waterfall logic
+    Tranche_dict = {}
+    Tranche_list = ['CG', 'VE', 'CM', 'GZ', 'TC', 'CZ', 'CA', 'CY']
+    cols = ['Principal', 'Interest', 'Balance']
+    
+    Tranche_bal_dict = {
+                        'CG': 74800000,
+                        'VE': 5200000,
+                        'CM': 14000000,
+                        'GZ': 22000000,
+                        'TC': 20000000,
+                        'CZ': 24000000,
+                        'CA': 32550000,
+                        'CY': 13950000
+                       }
+    
+    # small for loop, pre-allocate data for tranches
+    for i in Tranche_list:
+        Tranche_dict[i] = pd.DataFrame(np.zeros((241, 3)), columns=cols)
+        Tranche_dict[i].loc[0, 'Balance'] = Tranche_bal_dict[i]
+    
+    # Temporary arrays for calculating GZ/CZ interest accrual. The "interest" here
+    # is not cash flow.
+    cols = ['interest', 'accrued']
+    GZ_interest = pd.DataFrame(np.zeros((241, 2)), columns=cols)
+    CZ_interest = pd.DataFrame(np.zeros((241, 2)), columns=cols)
+    
+    # Calculate Cash flows
+    lib.tranche_CF_calc(Tranche_dict, CA_CY_princ, Rest_princ, GZ_interest,
+                        CZ_interest, coupon_rate)
+    
+    CF_df = pd.DataFrame(np.zeros((240, 8)), columns=list(Tranche_bal_dict.keys()))
+    for i in Tranche_bal_dict.keys():
+        CF_df[i] = Tranche_dict[i]['Principal'] + Tranche_dict[i]['Interest']
+        
+    # Calculate Bond price
+    cf_bond = CF_df.iloc[1:, :]
+    price = calc_bond_price(cf_bond, r)
+    return price
