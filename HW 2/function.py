@@ -393,18 +393,15 @@ def calc_OAS(zero_df, m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, 
 
     smm_df = calc_hazard(gamma, p, beta, v1, v2)
 
-    cash_ser = np.vectorize(calc_cashflow_CA, signature='(n),(n),(),(),(),(),(),(),(),(),(),(k)->(m)')(
+    cash_df = np.vectorize(calc_cashflow_CA, signature='(n),(n),(),(),(),(),(),(),(),(),(),(k)->(m)')(
                             smm_df.T.values.astype(float), spot_simulate_df.T.values.astype(float),
                             Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
                             Pool2_mwac, Pool2_age, Pool2_term, coupon_rate,Tranche_bal_arr)
 
-    cash_ser = pd.DataFrame(cash_ser).mean()
+    cash_df = pd.DataFrame(cash_df)
 
-    _zero_df = zero_df.copy()
-    _zero_df.index = _zero_df['DATE']
-    _zero_df = _zero_df[['ZERO']]
-    _zero_df = _zero_df.resample('1MS').interpolate(method='index')
-    _zero_df['DATE'] = _zero_df.index
+
+
     r0 = 0
     oas = scipy.optimize.fsolve(calc_PV_diff, r0, args=(cash_ser, _zero_df, Tranche_bal_arr[-2]))[0]
     return oas
