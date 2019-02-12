@@ -314,17 +314,20 @@ def mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_ba
                             Pool2_mwac, Pool2_age, Pool2_term, coupon_rate,Tranche_bal_arr)
     price_df = pd.DataFrame(price_df, columns=bond_list)
 
-    return price_df
+    return price_df, smm_df
 
 def calc_duration_convexity(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
                             Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
     deltar = 0.0025
-    price_pos = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0+deltar, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
-                        Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate).mean()
-    price = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
-                    Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate).mean()
-    price_neg = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0-deltar, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
-                        Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate).mean()
+    price_pos, _ = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0+deltar, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                        Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+    price_pos = price_pos.mean()
+    price, _ = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                    Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+    price = price.mean()
+    price_neg, _ = mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0-deltar, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+                        Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+    price_neg = price_neg.mean()
     duration = (price_neg-price_pos)/price/2/deltar
     convexity = (price_pos+price_neg-price*2)/price/deltar**2
     return duration, convexity
@@ -421,6 +424,7 @@ def calc_PV_diff(_r, cash_df, foward_rate, par):
     # print(pv-par)
     return pv-par
 
+
 def t_dattime(d0, d1, convention):
     """
     Function to calculate time in annual terms given convention
@@ -447,4 +451,3 @@ def t_dattime(d0, d1, convention):
         return days_ACT/365
     else:
         raise ValueError('%s convention has not been implemented' % convention)
-

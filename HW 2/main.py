@@ -157,7 +157,7 @@ theta_df = lib.hw_theta(kappa, sigma, discount_df, settle_date)
 
 r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
 
-price_df = fnc.mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+price_df, smm_df = fnc.mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
                     Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
 price_df = pd.DataFrame(price_df, columns=bond_list)
 price_mean = price_df.mean()
@@ -240,7 +240,7 @@ plt.savefig(os.path.join(folder, 'lambda_0_dyn.png'))
 plt.close()
 # %%
 #e)
-price_df_dyn = fnc.mc_bond(m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+price_df_dyn, smm_dyn_df = fnc.mc_bond(m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
                            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
 price_df_dyn = pd.DataFrame(price_df_dyn, columns=bond_list)
 price_mean_dyn = price_df_dyn.mean()
@@ -253,3 +253,21 @@ duration_dyn, convexity_dyn = fnc.calc_duration_convexity(m, theta_df, kappa, si
 
 oas_dyn = fnc.calc_OAS(zero_df, m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
                    Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
+# %%
+# Plot the hazard rates
+folder = 'Plots'
+filename = 'Hazard_Rate.png'
+if not os.path.exists(folder):
+    os.makedirs(folder)
+
+plt.figure(figsize=(10, 8))
+plt.plot(smm_df.mean(axis=1), label='Mean Static')
+plt.plot(smm_dyn_df.mean(axis=1), label='Mean Dynamic')
+plt.legend()
+plt.grid(True)
+plt.xlabel('Date')
+plt.ylabel('Hazard Rate')
+plt.savefig(os.path.join(folder, filename))
+plt.show()
+plt.close()
+# %%
