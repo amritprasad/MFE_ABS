@@ -136,14 +136,14 @@ def hw_B(kappa, delta_t):
     return B
 
 
-def hw_A(kappa, sigma, theta, tenor):
+def hw_A(kappa, sigma, _theta, tenor):
     """
     Function to calculate A(t, T) according to the Hull-White model.
 
     Args:
         kappa, sigma (float)
 
-        theta (pd.DataFrame)
+        _theta (pd.DataFrame)
 
         tenor (int): in months
 
@@ -151,6 +151,7 @@ def hw_A(kappa, sigma, theta, tenor):
         pd.Series containing values for A for each month
     """
     # theta=theta_df.copy(); tenor=120
+    theta = _theta.copy()
     # Convert theta index from dates to numerical to speed up estimation
     old_index = theta.index
     index = np.vectorize(lib.t_dattime)(old_index.min(), old_index, 'ACTby365')
