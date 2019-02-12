@@ -199,8 +199,9 @@ def calc_tenor_rate(spot_simulate_df, kappa, sigma, theta, tenor):
     _spot_simulate_df = spot_simulate_df.copy()
     _spot_simulate_df.index = theta.index
     A = hw_A(kappa, sigma, _theta, tenor)
-    part1 = -A/tenor
-    part2 = 1/kappa*(1-np.exp(-kappa*tenor))/tenor*_spot_simulate_df
+    delta_t = tenor/12
+    part1 = -A/delta_t
+    part2 = 1/kappa*(1-np.exp(-kappa*delta_t))/delta_t*_spot_simulate_df
 
     return (part1 + part2.T).T
 
@@ -381,7 +382,7 @@ def calc_cashflow_CA(SMM_array, r, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, 
 
     return CF_arr[:,-2]
 
-def calc_OAS(zero_df, m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+def calc_OAS(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
              Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
     spot_simulate_df = lib.simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
 
@@ -401,18 +402,22 @@ def calc_OAS(zero_df, m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, 
 
     cash_df = pd.DataFrame(cash_df)
 
-
+    foward_rate = calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, 1)
 
     r0 = 0
-    oas = scipy.optimize.fsolve(calc_PV_diff, r0, args=(cash_ser, _zero_df, Tranche_bal_arr[-2]))[0]
+    oas = scipy.optimize.fsolve(calc_PV_diff, r0, args=(cash_df, foward_rate, Tranche_bal_arr[-2]))[0]
     return oas
 
-def calc_PV_diff(r, cf, zero_df, par):
-    _zero_df = zero_df.copy()
-    _zero_df['ZERO'] = _zero_df['ZERO']+r
-    discount_df = discount_fac(_zero_df)
-    discount_df.index = range(0, len(discount_df))
-    pv = (discount_df.iloc[:, 0]*cf).sum()
+def calc_PV_diff(_r, cash_df, foward_rate, par):
+    r = _r[0]
+    _foward_rate = foward_rate+r
+    discount_df = np.exp(-_foward_rate.cumsum().astype(float)/12)
+    cf = cash_df.T
+    discount_df = discount_df.iloc[:len(cf),:]
+    discount_df.index = cf.index
+    discount_df.columns = cf.columns
+
+    pv = (discount_df*cf).sum().mean()
     # print(pv-par)
     return pv-par
 
@@ -443,26 +448,3 @@ def t_dattime(d0, d1, convention):
     else:
         raise ValueError('%s convention has not been implemented' % convention)
 
-
-def discount_fac(_zero_df):
-    """
-    Function to calculate the discount rates given the zero rates. Columns
-    should be DATE and ZERO
-
-    Args:
-        _zero_df (pd.DataFrame)
-
-    Returns:
-        pd.DataFrame containing discount factors between index_t and index_0.
-        Index is DATE and DISCOUNT contains discount factors
-    """
-    # Create deep copy to avoid modifying the original df passed
-    zero_df = _zero_df.copy()
-    # Calculate T_i
-    T_i = np.vectorize(t_dattime)(zero_df['DATE'].min(), zero_df['DATE'],
-                                  '30by360')
-    # Create discount df
-    discount_df = pd.DataFrame(((1 + zero_df['ZERO']/2)**(-2*T_i)).values,
-                               index=zero_df['DATE'],
-                               columns=['DISCOUNT'])
-    return discount_df
