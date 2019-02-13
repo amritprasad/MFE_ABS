@@ -251,7 +251,7 @@ price_std_dyn = price_df_dyn.std()/np.sqrt(len(price_df_dyn))
 duration_dyn, convexity_dyn = fnc.calc_duration_convexity(m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
                                                           Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
 
-oas_dyn = fnc.calc_OAS(zero_df, m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+oas_dyn = fnc.calc_OAS(m, theta_df, kappa, sigma, gamma_dyn, p_dyn, beta_dyn, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
                    Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate)
 # %%
 # Plot the hazard rates
