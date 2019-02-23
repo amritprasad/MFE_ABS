@@ -10,7 +10,6 @@ import os
 import sys
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-import toolz
 
 # Import library
 import abslibrary as lib  # HW 1 library
@@ -196,3 +195,31 @@ plt.ylabel('Flat Volatility')
 plt.savefig('./Plots/HW_3f_Flat_Vol_Comparison.png')
 plt.show()
 # %%
+# Problem 2: Fitting Hazard Curves
+# Specify whether prepayments data needs to filtered out for defaults and
+# vice-versa
+filt = False
+# Fit ARM
+data_folder = 'Data'
+filename = 'ARM_perf.csv'
+filepath = os.path.join('.', data_folder, filename)
+data_df = pd.read_csv(filepath)
+# Prepay
+res_arm_p, sol_arm_p, hessian_inv_arm_p = lib_3.fit_hazard(
+        data_df, prepay=True, filt=filt)
+# Default
+res_arm_d, sol_arm_d, hessian_inv_arm_d = lib_3.fit_hazard(
+        data_df, prepay=False, filt=filt)
+
+# Fit FRM
+filename = 'FRM_perf.csv'
+filepath = os.path.join('.', data_folder, filename)
+data_df = pd.read_csv(filepath)
+# Prepay
+res_frm_p, sol_frm_p, hessian_inv_frm_p = lib_3.fit_hazard(
+        data_df, prepay=True, filt=filt)
+# Default
+res_frm_d, sol_frm_d, hessian_inv_frm_d = lib_3.fit_hazard(
+        data_df, prepay=False, filt=filt)
+# %%
+# Problem 3: Model cash flows
