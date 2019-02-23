@@ -105,3 +105,4 @@ venv.bak/
 
 # Excel temp file created upon opening
 ~$*
+.~lock*
