@@ -6,9 +6,8 @@ Library of functions (HW 3)
 import pandas as pd
 import numpy as np
 from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
-from scipy.optimize import minimize, differential_evolution
+from scipy.optimize import minimize, basinhopping
 import toolz
-import multiprocessing
 
 # Import library
 import abslibrary_2 as lib_2  # HW 2 library
@@ -37,12 +36,12 @@ def good_bday_offset(dates, gbdays=-2):
     return new_dates
 
 
-def fit_hazard(_data_df, prepay=True, filt=False):
+def fit_hazard(data_df, prepay=True, filt=False, guess=np.zeros(4)):
     """
     Function to fit hazard rate to the data
 
     Args:
-        _data_df (pd.DataFrame): contains the underlying mortgages
+        data_df (pd.DataFrame): contains the underlying mortgages
 
         prepay (bool): specify if the fitting needs to be done on the prepaid
         or defaulted mortgages
@@ -50,17 +49,19 @@ def fit_hazard(_data_df, prepay=True, filt=False):
         filt (bool): specify whether defaults/prepayments need to be filtered
         out
 
+        guess (np.1darray)
+
     Returns:
         scipy.optimize.OptimizeResult object
     """
     # prepay=True; filt=False
-    data_df = _data_df.copy()
+    # prepay=False; filt=False
+    df = data_df.copy()
     covar_cols = ['Spread', 'spring_summer'] if prepay else ['LTV']
     # Convert the percentage covariates to decimals
     per_cols = ['Spread']
-    data_df[per_cols] /= 100
+    df[per_cols] /= 100
     event_col = 'Prepayment_indicator' if prepay else 'Default_indicator'
-    df = data_df.copy()
     if filt:
         # Filter out data according to prepay
         remove_event = 'Default_indicator' if prepay\
@@ -74,24 +75,24 @@ def fit_hazard(_data_df, prepay=True, filt=False):
     covars = df[covar_cols].values
 
     # Fit hazard rate
-    param = np.array([0.025, 1.37, 0.72, 0.23]) if prepay else np.array(
-            [0.013, 1.37, 0.5])
+    param = guess
     tb = df['period_beginning'].values
     te = df['Loan_age'].values
     event = df[event_col].values
 
     eps = np.finfo(float).eps
-    bounds_de = [(eps, 10), (eps, 10)] + [(-100, 100)]*len(covar_cols)
     bounds = [(eps, None), (eps, None)] + [(None, None)]*len(covar_cols)
 
-    # Run optimizer. WARNING!!! MIGHT TAKE UPTO 15 min depending upon config
-    res_temp = differential_evolution(func=lib_2.log_log_like,
-                                      args=(tb, te, event, covars),
-                                      bounds=bounds_de, updating='deferred',
-                                      workers=multiprocessing.cpu_count()-1)
-    if not res_temp.success:
-        raise ValueError('Differential Evolution did not converge')
-    res_haz = minimize(fun=lib_2.log_log_like, x0=res_temp.x, args=(
+    # Run optimizer
+    # Below is the code for basinhopping which has been commented. Running it
+    # requires upto 40 min. It was run independently for each of the cases and
+    # the returned parameters used as the guess values for minimize
+#    res_temp = basinhopping(func=lib_2.log_log_like, x0=param,
+#                            minimizer_kwargs={'args': (tb, te, event, covars),
+#                                              'method': 'L-BFGS-B',
+#                                              'jac': lib_2.log_log_grad,
+#                                              'bounds': bounds})
+    res_haz = minimize(fun=lib_2.log_log_like, x0=param, args=(
             tb, te, event, covars), jac=lib_2.log_log_grad, bounds=bounds,
                        method='L-BFGS-B', options={'disp': True})
     if not res_haz.success:
@@ -112,11 +113,11 @@ def fit_hazard(_data_df, prepay=True, filt=False):
     print('Final LLK: {:.2f}'.format(-lib_2.log_log_like(sol, tb, te,
                                                          event, covars)))
     print('\nParameters:')
-    if beta.size > 1:
-        print('gamma =', gamma, '\np =', p, '\nCoupon Gap Coef =', beta[0],
+    if 'spring_summer' in covar_cols:
+        print('gamma =', gamma, '\np =', p, '\nCoupon Gap =', beta[0],
               '\nSummer Indicator =', beta[1])
     else:
-        print('gamma =', gamma, '\np =', p, '\nLTV Coef =', beta[0])
+        print('gamma =', gamma, '\np =', p, '\nLTV =', beta[0])
     print('\nRespective Standard Errors:', ', '.join(
             std_err.round(3).astype(str)))
     print('\nProportional Standard Errors:', ', '.join(prop_std_err.round(

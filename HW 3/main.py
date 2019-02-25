@@ -206,10 +206,12 @@ filepath = os.path.join('.', data_folder, filename)
 data_df = pd.read_csv(filepath)
 # Prepay
 res_arm_p, sol_arm_p, hessian_inv_arm_p = lib_3.fit_hazard(
-        data_df, prepay=True, filt=filt)
+        data_df, prepay=True, filt=filt,
+        guess=np.array([0.025, 1.37, 0.72, 0.23]))
 # Default
 res_arm_d, sol_arm_d, hessian_inv_arm_d = lib_3.fit_hazard(
-        data_df, prepay=False, filt=filt)
+        data_df, prepay=False, filt=filt,
+        guess=np.array([0.035, 1.98, 0.78]))
 
 # Fit FRM
 filename = 'FRM_perf.csv'
@@ -217,9 +219,11 @@ filepath = os.path.join('.', data_folder, filename)
 data_df = pd.read_csv(filepath)
 # Prepay
 res_frm_p, sol_frm_p, hessian_inv_frm_p = lib_3.fit_hazard(
-        data_df, prepay=True, filt=filt)
+        data_df, prepay=True, filt=filt,
+        guess=np.array([0.021, 1.37, 0.72, 0.23]))
 # Default
 res_frm_d, sol_frm_d, hessian_inv_frm_d = lib_3.fit_hazard(
-        data_df, prepay=False, filt=filt)
+        data_df, prepay=False, filt=filt,
+        guess=np.array([0.015,  1.25, 1.3]))
 # %%
 # Problem 3: Model cash flows
