@@ -8,6 +8,7 @@ import numpy as np
 from pandas.tseries.holiday import USFederalHolidayCalendar as calendar
 from scipy.optimize import minimize, basinhopping
 import toolz
+import numdifftools as nd
 
 # Import library
 import abslibrary_2 as lib_2  # HW 2 library
@@ -36,7 +37,8 @@ def good_bday_offset(dates, gbdays=-2):
     return new_dates
 
 
-def fit_hazard(data_df, prepay=True, filt=False, guess=np.zeros(4)):
+def fit_hazard(data_df, prepay=True, filt=False, guess=np.zeros(4),
+               numdiff=True):
     """
     Function to fit hazard rate to the data
 
@@ -54,8 +56,8 @@ def fit_hazard(data_df, prepay=True, filt=False, guess=np.zeros(4)):
     Returns:
         scipy.optimize.OptimizeResult object
     """
-    # prepay=True; filt=False
-    # prepay=False; filt=False
+    # prepay=True; filt=False; numdiff=True
+    # prepay=False; filt=False; numdiff=True
     df = data_df.copy()
     covar_cols = ['Spread', 'spring_summer'] if prepay else ['LTV']
     # Convert the percentage covariates to decimals
@@ -89,24 +91,37 @@ def fit_hazard(data_df, prepay=True, filt=False, guess=np.zeros(4)):
     # the returned parameters used as the guess values for minimize
 #    res_temp = basinhopping(func=lib_2.log_log_like, x0=param,
 #                            minimizer_kwargs={'args': (tb, te, event, covars),
-#                                              'method': 'L-BFGS-B',
+#                                              'method': 'TNC',
 #                                              'jac': lib_2.log_log_grad,
 #                                              'bounds': bounds})
-    res_haz = minimize(fun=lib_2.log_log_like, x0=param, args=(
-            tb, te, event, covars), jac=lib_2.log_log_grad, bounds=bounds,
-                       method='L-BFGS-B', options={'disp': True})
-    if not res_haz.success:
-        raise ValueError('Optimizer did not converge')
+    if numdiff:
+        res_haz = minimize(fun=lib_2.log_log_like, x0=param, args=(
+                tb, te, event, covars), jac=lib_2.log_log_grad, bounds=bounds,
+                           method='TNC', options={'disp': True})
+        if not res_haz.success:
+            raise ValueError('Optimizer did not converge')
+        H = nd.Hessian(lib_2.log_log_like, step=1e-4)(res_haz.x, tb, te, event,
+                                                      covars)
+        # Calculate the Moore-Penrose inverse since it's robust to small
+        # singular values
+        hessian_inv = np.linalg.pinv(H)
+    else:
+        res_haz = minimize(fun=lib_2.log_log_like, x0=param, args=(
+                tb, te, event, covars), jac=lib_2.log_log_grad, bounds=bounds,
+                           method='L-BFGS-B', options={'disp': True})
+        if not res_haz.success:
+            raise ValueError('Optimizer did not converge')
+
+        hessian_inv = res_haz.hess_inv.todense()
 
     sol = res_haz.x
     gamma, p = sol[:2]
     beta = sol[2:]
-    # Calculate standard errors as the square root of the diagonal elements of
-    # the Hessian inverse
+    # Calculate standard errors as the square root of the diagonal elements
+    # of the Hessian inverse
     N = len(covars)
-    hessian_inv = res_haz.hess_inv.todense()
     std_err = toolz.pipe(hessian_inv/N, np.diag, np.sqrt)
-    prop_std_err = (100*std_err/sol)
+    prop_std_err = (100*std_err/abs(sol))
 
     print('Initial LLK: {:.2f}'.format(-lib_2.log_log_like(param, tb, te,
                                                            event, covars)))

@@ -199,6 +199,13 @@ plt.show()
 # Specify whether prepayments data needs to filtered out for defaults and
 # vice-versa
 filt = False
+# The fit_hazard function was run using basin-hopping and the parameters
+# returned have been used as the guess for the standard minimize function.
+# Basin-Hopping is a two-phase method that combines a global stepping algorithm
+# with local minimization at each step. It gives values close to the global
+# optima. Read more at:
+# https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.basinhopping.html#scipy.optimize.basinhopping
+
 # Fit ARM
 data_folder = 'Data'
 filename = 'ARM_perf.csv'
@@ -207,11 +214,11 @@ data_df = pd.read_csv(filepath)
 # Prepay
 res_arm_p, sol_arm_p, hessian_inv_arm_p = lib_3.fit_hazard(
         data_df, prepay=True, filt=filt,
-        guess=np.array([0.025, 1.37, 0.72, 0.23]))
+        guess=np.array([0.02591358, 1.55772621, -0.22301882, -0.01288632]))
 # Default
 res_arm_d, sol_arm_d, hessian_inv_arm_d = lib_3.fit_hazard(
         data_df, prepay=False, filt=filt,
-        guess=np.array([0.035, 1.98, 0.78]))
+        guess=np.array([0.01938579, 1.80575821, 0.66498693]))
 
 # Fit FRM
 filename = 'FRM_perf.csv'
@@ -220,10 +227,10 @@ data_df = pd.read_csv(filepath)
 # Prepay
 res_frm_p, sol_frm_p, hessian_inv_frm_p = lib_3.fit_hazard(
         data_df, prepay=True, filt=filt,
-        guess=np.array([0.021, 1.37, 0.72, 0.23]))
+        guess=np.array([0.01055477, 1.14627426, 0.05465934, -0.20479109]))
 # Default
 res_frm_d, sol_frm_d, hessian_inv_frm_d = lib_3.fit_hazard(
         data_df, prepay=False, filt=filt,
-        guess=np.array([0.015,  1.25, 1.3]))
+        guess=np.array([0.0060712, 1.4897565, 1.45588899]))
 # %%
 # Problem 3: Model cash flows
