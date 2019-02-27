@@ -139,3 +139,90 @@ def fit_hazard(data_df, prepay=True, filt=False, guess=np.zeros(4),
             1).astype(str)))
 
     return res_haz, res_haz.x, hessian_inv
+
+def simulate_rate(m, theta_df, kappa, sigma, r0, antithetic):
+    """
+    Function to simulate interest rate
+
+    Args:
+        theta_df (pd.DataFRame): value of θ(t)
+
+        kappa, sigma (float): Hull-White parameters
+
+    Returns:
+        df containing instantaneous interest rate
+    """
+    spot_simulate_df = theta_df.resample('1MS').first()*np.nan
+    spot_simulate_df = pd.DataFrame(index=spot_simulate_df.index,
+                                    columns=range(1, m+1))
+    deltat = 1.0/12
+    if antithetic:
+        row, column = spot_simulate_df.shape
+        df_temp = pd.DataFrame(np.random.normal(size=(row, int(column/2))))
+        rand_norm = pd.concat([df_temp, -df_temp], axis=1)
+        rand_norm.index = spot_simulate_df.index
+        rand_norm.columns = spot_simulate_df.columns
+    else:
+        rand_norm = pd.DataFrame(np.random.normal(size=spot_simulate_df.shape),
+                                 index=spot_simulate_df.index,
+                                 columns=spot_simulate_df.columns)
+    spot_simulate_df.iloc[0] = r0
+    for i in range(1, len(spot_simulate_df)):
+        deltax = np.sqrt(deltat)*rand_norm.iloc[i]
+        deltar = (theta_df.iloc[i, 0]-spot_simulate_df.iloc[
+                i-1]*kappa)*deltat+sigma*deltax
+        spot_simulate_df.iloc[i] = spot_simulate_df.iloc[i-1]+deltar
+    spot_simulate_df.index = theta_df.index
+    #spot_simulate_df.index = range(1, len(spot_simulate_df)+1)
+    return spot_simulate_df
+
+def simulate_homeprice(m, spot_simulate_df, current_principal,
+                       current_ltv, q=0.025, phi=0.12):
+    """
+    Function to simulate interest rate
+
+    Args:
+        theta_df (pd.DataFRame): value of θ(t)
+
+        kappa, sigma (float): Hull-White parameters
+
+    Returns:
+        df containing instantaneous interest rate
+    """
+    home_price_df = spot_simulate_df.copy()*0.0
+    deltat = 1.0/12
+    row, column = spot_simulate_df.shape
+    df_temp = pd.DataFrame(np.random.normal(size=(row, int(column/2))))
+    rand_norm = pd.concat([df_temp, -df_temp], axis=1)
+    rand_norm.index = spot_simulate_df.index
+    rand_norm.columns = spot_simulate_df.columns
+
+    home_price_df.iloc[0] = current_principal/current_ltv
+    for i in range(1, len(spot_simulate_df)):
+        deltax = np.sqrt(deltat)*rand_norm.iloc[i]
+        deltah = (spot_simulate_df.iloc[i-1]-q)*home_price_df.iloc[i-1]*deltat + phi*home_price_df.iloc[i-1]*deltax
+        home_price_df.iloc[i] = home_price_df.iloc[i-1]+deltah
+
+    return home_price_df
+
+def mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
+    spot_simulate_df = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
+    home_price_df = simulate_homeprice(m, spot_simulate_df, current_principal, current_ltv)
+
+    # Calculate 10 yr rates
+    tenor_rate = calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, tenor)
+
+    v1 = wac-tenor_rate
+    v2 = v1.copy()*0.0
+    v2[(v2.index.month>=4)&(v2.index.month<=7)] = 1
+
+    smm_df = calc_hazard(gamma, p, beta, v1, v2)
+
+    price_df = np.vectorize(calc_cashflow, signature='(n),(n),(),(),(),(),(),(),(),(),(),(k)->(m)')(
+                            smm_df.T.values.astype(float), spot_simulate_df.T.values.astype(float),
+                            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+                            Pool2_mwac, Pool2_age, Pool2_term, coupon_rate,Tranche_bal_arr)
+    price_df = pd.DataFrame(price_df, columns=bond_list)
+
+    return price_df, smm_df
