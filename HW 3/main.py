@@ -234,3 +234,75 @@ res_frm_d, sol_frm_d, hessian_inv_frm_d = lib_3.fit_hazard(
         guess=np.array([0.0060712, 1.4897565, 1.45588899]))
 # %%
 # Problem 3: Model cash flows
+
+FRM_bal =  52416155
+ARM_bal = 226122657
+FRM_term = 354
+FRM_age = 6
+ARM_term = 354
+ARM_age = 6
+FRM_mwac = .07419/12
+ARM_sprd = .055/12
+
+#A1
+#A2
+#A3
+#M1
+#M2
+#M3
+#M4
+#M5
+#M6
+#M7
+#M8
+#M9
+#M10
+
+orig_bal = 793431000
+curr_bal = FRM_bal+ARM_bal
+
+# A2-M8
+curr_Tranche_bal=[
+107769,
+24954,
+38481,
+30150,
+18646,
+16265,
+15075,
+13488,
+13092,
+619
+]
+
+spreads=[
+0.18,
+0.28,
+0.36,
+0.38,
+0.39,
+0.51,
+0.55,
+0.62,
+1.15,
+1.4
+]
+
+# Fit hazards
+    
+# pool cash flow
+    # Take interest rate path
+    # Take home price paths
+    # Compute hazards
+    # Compute principal/interest/prepay/default CF
+    # FRM
+    # ARM
+
+# Tranche cash flows
+    # Per period, allocate principal, interest, prepay, default
+    # Prepay starts at the top
+    # Defaults starts with 1) excess spread, 2) OC, 3) bottom layer
+    #   Extra principal distribution
+    # Assume existence of a residual piece, which gets excess spread payments
+    
+    
