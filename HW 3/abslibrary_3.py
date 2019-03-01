@@ -229,6 +229,13 @@ def mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_ba
     return price_df, smm_df
 
 
+# We need to pass in a default hazard function (parameterized), which takes an LTV parameter
+# Pass in simulated HP index
+# for each time step:
+    # Calculate default based on previous period LTV, adjust current loan balance and home price
+    # Adjust loan balance due to schedule and unscheduled principal payments
+    # Construct LTV
+
 @njit
 def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, default_arr):
     """
@@ -285,27 +292,13 @@ def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def
         
     return 
 
-# To value risky Tranche
-# each period: reduce default, calculate PMT, then PPT
-    # need balance_t
-        # balance_{T-1} is balance - principal - PPT - Default
-        # principal is PMT - interest
-    # Default
-    # CF = PMT + PPT - .6 Default
-    # 
-    
-# To value CDS, need Tranche:
-    # PP adjusted principal
-    # Default increment
-    # Keep 
-
 Tranche_CF_arr = np.zeros((10,241,5))
 # 0 PMT
 # 1 Interest
 # 2 Principal
 # 3 Balance
 # 4 defaulted balance
-# 5 CF shortfall
+# 5 Interest shortfall
 
 @njit
 def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig_bal, mat):
@@ -332,46 +325,37 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
             tranche_interest = tranche_interest + tranche_CF_arr[j, i-1, 4] * (rates_arr[i-1]+sprd_arr[j])
             tranche_bal = tranche_bal + tranche_CF_arr[j,i-1,4]
             
-            # calculate planned PMT, Interest, Principal
-            PMT =  tranche_CF_arr[j, i-1, 4] if mat-i+1<=0 else (
-                                     lib.pmt(tranche_CF_arr[j, i-1, 4], mat-i+1, rates_arr[i-1]+sprd_arr[j]) )
+            # calculate planned Interest
             tranche_CF_arr[j, i, 1] = tranche_CF_arr[j, i-1, 4] * (rates_arr[i-1]+sprd_arr[j])
-            tranche_CF_arr[j, i, 2] = PMT - tranche_CF_arr[j, i, 1]
-        
-        
+                
         # Calculate extra principal distributions and prepayment
         excess_spread = np.maximum(pool_CF_arr[1,i] - tranche_interest, 0)
         OC = np.maximum(pool_CF_arr[4,i-1] - tranche_bal, 0)
         OC_target = np.maximum( np.minimum(0.062 * pool_CF_arr[4,i], 0.031 * orig_bal ), 3967158)
         epd = np.minimum(excess_spread, np.maximum(OC_target-OC, 0))
         
-        # prepayment total, PPMT + .4*default + epd
-        pp = pool_CF_arr[i,3] + pool_CF_arr[i,5]*.4 + epd
         
-        
-        # allocate principal and interest
-        available_princ = pool_CF_arr[i,2]
+        # allocate principal (and unplanned principal) and interest
+        available_princ = pool_CF_arr[i,2] + pool_CF_arr[i,3] + pool_CF_arr[i,5]*.4 + epd
         available_int = pool_CF_arr[i,1]
         
         # compute cash flow shortfall, allocate planned principal and interest, allocate PPT
         for j in range(tranche_CF_arr.shape[0]):
-            # cashflow shortfall
-            tranche_CF_arr[j, i, 5] = np.maximum( tranche_CF_arr[j, i, 2] - available_princ, 0) + \
-                                        np.maximum( tranche_CF_arr[j, i, 1] - available_int, 0)
-            # principal and interest                            
-            tranche_CF_arr[j, i, 2] = np.minimum( available_princ, tranche_CF_arr[j, i, 2])
+            
+            # interest shortfall
+            tranche_CF_arr[j, i, 5] = np.maximum( tranche_CF_arr[j, i, 1] - available_int, 0)
+            
+            # interest allocation
             tranche_CF_arr[j, i, 1] = np.minimum( available_int, tranche_CF_arr[j, i, 1])
-            available_princ = np.maximum(available_princ - tranche_CF_arr[j, i, 2],0)
             available_int = np.maximum(available_int - tranche_CF_arr[j,i,1],0)
             
-            # prepayment
-            pp_amt = np.minimum(pp, tranche_CF_arr[j, i-1, 4] - tranche_CF_arr[j, i, 2])
-            tranche_CF_arr[j, i, 2] = tranche_CF_arr[j, i, 2] + pp_amt
-            pp = np.max(pp - pp_amt, 0)
+            # principal
+            tranche_CF_arr[j, i, 2] = np.minimum( available_princ, tranche_CF_arr[j, i-1, 4])
+            available_princ = np.maximum(available_princ - tranche_CF_arr[j, i, 2], 0)
             
             # reduce balance
             tranche_CF_arr[j, i, 4] = np.maximum(tranche_CF_arr[j, i-1, 4] - tranche_CF_arr[j, i, 2], 0)
-        
+            
         
         # allocate default
         # eat through overcollateralization
@@ -379,7 +363,7 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
         
         for j in reversed(range(tranche_CF_arr.shape[0])):
             default_amt = np.minimum( default_total, tranche_CF_arr[j, i, 4])
-            tranche_CF_arr[j, i, 4] = tranche_CF_arr[j, i, 4] - default_amt
+            tranche_CF_arr[j, i, 4] = np.maximum(tranche_CF_arr[j, i, 4] - default_amt, 0)
             default_total = default_total - default_amt
             tranche_CF_arr[j, i, 5] = default_amt
             
@@ -387,8 +371,21 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
 
 @njit
 def cds_valuation(tranche_CF_arr, sprd_arr, rates_arr, mat):
+    """
+    Calculates CDS value along a rate path (and implicit HP path)
+    
+    tranche_CF_arr
+    # 0 PMT
+    # 1 Interest
+    # 2 Principal
+    # 3 Balance
+    # 4 defaulted balance
+    # 5 Interest shortfall
+    """
     
     for i in range(1,mat+1):
+        # discount the default balance *.6
+        # discount the interest cashflow shortfall
         pass
     return 
 
