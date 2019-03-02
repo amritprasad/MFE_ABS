@@ -216,21 +216,20 @@ def calc_def_hazard(gamma, p, beta, LTV, t):
     hazard_rate = part1*part2
     return hazard_rate
 
-def calc_hazard(gamma, p, beta, v1, v2):
+def calc_hazard(gamma, p, beta, v1, v2, age):
     """
     Function to give us CPR schedule
     """
     _v1 = v1.copy()
-    _v1.index = range(len(v1))
+    _v1.index = range(age,len(v1)+age)
     _v2 = v2.copy()
-    _v2.index = range(len(v2))
+    _v2.index = range(age,len(v2)+age)
     part1 = pd.Series((gamma*p)*(gamma*_v1.index)**(p-1)/(1+(gamma*_v1.index)**p), index = _v1.index)
     part2 = beta[0]*_v1+beta[1]*_v2
     part3 = np.exp(part2.astype(float))
     hazard_rate = (part1*part3.T).T
     hazard_rate.index = v1.index
     return hazard_rate
-
 
 @njit
 def calc_bond_price(cf_bond, _r):
