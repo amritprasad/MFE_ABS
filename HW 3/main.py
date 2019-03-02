@@ -289,7 +289,7 @@ spreads=[
 ]
 
 # Fit hazards
-    
+
 # pool cash flow
     # Take interest rate path
     # Take home price paths
@@ -304,5 +304,4 @@ spreads=[
     # Defaults starts with 1) excess spread, 2) OC, 3) bottom layer
     #   Extra principal distribution
     # Assume existence of a residual piece, which gets excess spread payments
-    
-    
+

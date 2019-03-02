@@ -209,11 +209,13 @@ def calc_tenor_rate(spot_simulate_df, kappa, sigma, theta, tenor):
 WEN WRITE THIS FUNCTION!
 """
 
-@njit 
+@njit
 def calc_def_hazard(gamma, p, beta, LTV, t):
-    
-    return hazad_rate
-    
+    part1 = (gamma*p)*(gamma*t)**(p-1)/(1+(gamma*t)**p)
+    part2 = beta[0]*LTV
+    hazard_rate = part1*part2
+    return hazard_rate
+
 def calc_hazard(gamma, p, beta, v1, v2):
     """
     Function to give us CPR schedule
