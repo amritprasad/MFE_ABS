@@ -222,7 +222,7 @@ def simulate_homeprice(m, spot_simulate_array, current_principal,
 
 
 @njit
-def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz, hp_array):
+def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, sol_frm_d, hp_array):
     """
     Fixed Rate Pool Cash Flow calculation. Modifies Pool_data ndarray in place
 
@@ -235,6 +235,7 @@ def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz, 
     5 Default
 
     """
+    def_haz = lambda LTV, t: lib_2.calc_def_hazard(sol_frm_d[0], sol_frm_d[1], sol_frm_d[2:], LTV, t) # default hazard
     for i in range(1,Pool_term+1):
         # Calculate LTV_i
         LTV = Pool_data[i-1,4] / hp_array[i-1]
@@ -255,7 +256,7 @@ def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz, 
     return
 
 @njit
-def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def_haz, hp_array):
+def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, sol_arm_d, hp_array):
     """
     Fixed Rate Pool Cash Flow calculation. Modifies Pool_data ndarray in place
 
@@ -268,6 +269,7 @@ def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def
     5 Default
 
     """
+    def_haz = lambda LTV, t: lib_2.calc_def_hazard(sol_arm_d[0], sol_arm_d[1], sol_arm_d[2:], LTV, t) # default hazard
     for i in range(1,Pool_term+1):
         # Calculate LTV_i
         LTV = Pool_data[i-1,4] / hp_array[i-1]
@@ -348,7 +350,7 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
         # eat through overcollateralization
         default_total = pool_CF_arr[i,5] - np.maximum(pool_CF_arr[i,4] - tranche_CF_arr[:, i-1, 4].sum(), 0)
 
-        for j in reversed(range(tranche_CF_arr.shape[0])):
+        for j in np.array(range(tranche_CF_arr.shape[0]))[::-1]:
             default_amt = np.minimum( default_total, tranche_CF_arr[j, i, 4])
             tranche_CF_arr[j, i, 4] = np.maximum(tranche_CF_arr[j, i, 4] - default_amt, 0)
             default_total = default_total - default_amt
@@ -375,7 +377,7 @@ def calc_bond_price(cf_bond, _r):
 
 @njit
 def calc_cashflow(SMM_array_frm, SMM_array_arm, r, hpi_1, hpi_2, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
-                  Pool2_sprd, Pool2_age, Pool2_term, sprd_arr, Tranche_bal_arr, orig_bal, def_haz1, def_haz2):
+                  Pool2_sprd, Pool2_age, Pool2_term, sprd_arr, Tranche_bal_arr, orig_bal, sol_frm_d, sol_arm_d):
     """
     # Pool cash flows arrays
     # 5 columns:
@@ -408,8 +410,10 @@ def calc_cashflow(SMM_array_frm, SMM_array_arm, r, hpi_1, hpi_2, Pool1_bal, Pool
     Pool1_data[0, 4] = Pool1_bal
     Pool2_data[0, 4] = Pool2_bal
 
-    FRM_pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array_frm, def_haz1, hpi_1)
-    ARM_pool_cf(Pool2_data, r, Pool2_sprd, Pool2_age, Pool2_term, SMM_array_arm, def_haz2, hpi_2)
+
+
+    FRM_pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array_frm, sol_frm_d, hpi_1)
+    ARM_pool_cf(Pool2_data, r, Pool2_sprd, Pool2_age, Pool2_term, SMM_array_arm, sol_arm_d, hpi_2)
 
     # Reproduce Principal CF Allocation (waterfall)
     Total_pool_data = Pool1_data + Pool2_data
@@ -454,8 +458,7 @@ def mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_
 
     smm_frm_df = lib_2.calc_hazard(sol_frm_p[0], sol_frm_p[1], sol_frm_p[2:], v_frm_prepay1, v_frm_prepay2, age=39).astype(float) # prepay hazard
     smm_arm_df = lib_2.calc_hazard(sol_arm_p[0], sol_arm_p[1], sol_arm_p[2:], v_arm_prepay1, v_arm_prepay2, age=39).astype(float) # prepay hazard
-    def_haz1 = lambda LTV, t: lib_2.calc_def_hazard(sol_frm_d[0], sol_frm_d[1], sol_frm_d[2:], LTV, t) # default hazard
-    def_haz2 = lambda LTV, t: lib_2.calc_def_hazard(sol_arm_d[0], sol_arm_d[1], sol_arm_d[2:], LTV, t) # default hazard
+
 
 
     # function definition
@@ -463,12 +466,12 @@ def mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_
     #              Pool2_sprd, Pool2_age, Pool2_term, sprd_arr, Tranche_bal_arr, orig_bal, def_haz):
 
 
-    price_df = np.vectorize(calc_cashflow, signature='(n),(n),(n),(n),(n),(),(),(),(),(),(),(),(),(k),(k),(),(),()->(m)')(
+    price_df = np.vectorize(calc_cashflow, signature='(n),(n),(n),(n),(n),(),(),(),(),(),(),(),(),(k),(k),(),(t),(t)->(m)')(
                             smm_frm_df.T.values, smm_arm_df.T.values,
                             spot_simulate_df.T.values,hp_array1.T,
                             hp_array2.T,Pool1_bal, Pool2_bal, Pool1_mwac,
                             Pool1_age, Pool1_term, sprd, Pool2_age, Pool2_term, sprd_arr,
-                            Tranche_bal_arr, orig_bal, def_haz1, def_haz2)
+                            Tranche_bal_arr, orig_bal, sol_frm_d, sol_arm_d)
 
     price_df = pd.DataFrame(price_df, columns=range(len(Tranche_bal_arr)))
 
