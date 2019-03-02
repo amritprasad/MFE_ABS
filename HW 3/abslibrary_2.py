@@ -205,7 +205,15 @@ def calc_tenor_rate(spot_simulate_df, kappa, sigma, theta, tenor):
 
     return (part1 + part2.T).T
 
+"""
+WEN WRITE THIS FUNCTION!
+"""
 
+@njit 
+def calc_def_hazard(gamma, p, beta, LTV, t):
+    
+    return hazad_rate
+    
 def calc_hazard(gamma, p, beta, v1, v2):
     """
     Function to give us CPR schedule
@@ -220,6 +228,7 @@ def calc_hazard(gamma, p, beta, v1, v2):
     hazard_rate = (part1*part3.T).T
     hazard_rate.index = v1.index
     return hazard_rate
+
 
 @njit
 def calc_bond_price(cf_bond, _r):

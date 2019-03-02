@@ -236,8 +236,16 @@ def mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_ba
     # Adjust loan balance due to schedule and unscheduled principal payments
     # Construct LTV
 
+# fitted hazard parameters
+gamma=.1
+p=1.5
+beta=1.5
+
+def calc_def_hazard(gamma, p, beta, LTV, t):
+def_haz = lambda LTV, t: calc_def_hazard(gamma, p, beta, LTV, t)
+    
 @njit
-def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, default_arr):
+def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz):
     """
     Fixed Rate Pool Cash Flow calculation. Modifies Pool_data ndarray in place
     
@@ -251,6 +259,10 @@ def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, default_a
 
     """
     for i in range(1,Pool_term+1): 
+        # Calculate LTV_i
+        def_t = def_haz(LTV_i, i)
+        
+        # reduce balance by default
         Pool_data[i,5] = default_arr[i] * Pool_data[i-1,4]
         Pool_data[i,4] = Pool_data[i-1,4]-Pool_data[i,5]
         Pool_data[i,0] = lib.pmt(Pool_data[i,4], Pool_term-i+1, Pool_mwac)
