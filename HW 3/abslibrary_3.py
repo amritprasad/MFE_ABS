@@ -190,7 +190,9 @@ def simulate_homeprice(m, spot_simulate_df, current_principal,
     Returns:
         df containing instantaneous interest rate
     """
-    home_price_df = spot_simulate_df.copy()*0.0
+    home_price_df1 = spot_simulate_df.copy()*0.0
+    home_price_df2 = spot_simulate_df.copy()*0.0
+    
     deltat = 1.0/12
     row, column = spot_simulate_df.shape
     df_temp = pd.DataFrame(np.random.normal(size=(row, int(column/2))))
@@ -198,35 +200,20 @@ def simulate_homeprice(m, spot_simulate_df, current_principal,
     rand_norm.index = spot_simulate_df.index
     rand_norm.columns = spot_simulate_df.columns
 
-    home_price_df.iloc[0] = current_principal/current_ltv
+    home_price_df1.iloc[0] = current_principal[0]/current_ltv[0]
+    home_price_df2.iloc[1] = current_principal[1]/current_ltv[1]
+    
     for i in range(1, len(spot_simulate_df)):
         deltax = np.sqrt(deltat)*rand_norm.iloc[i]
-        deltah = (spot_simulate_df.iloc[i-1]-q)*home_price_df.iloc[i-1]*deltat + phi*home_price_df.iloc[i-1]*deltax
-        home_price_df.iloc[i] = home_price_df.iloc[i-1]+deltah
+        deltah = (spot_simulate_df.iloc[i-1]-q)*home_price_df1.iloc[i-1]*deltat + phi*home_price_df1.iloc[i-1]*deltax
+        home_price_df1.iloc[i] = home_price_df1.iloc[i-1]+deltah
+        
+        deltah = (spot_simulate_df.iloc[i-1]-q)*home_price_df2.iloc[i-1]*deltat + phi*home_price_df2.iloc[i-1]*deltax
+        home_price_df2.iloc[i] = home_price_df2.iloc[i-1]+deltah
+        
+        
 
-    return home_price_df
-
-def mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
-            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, Pool2_mwac, Pool2_age, Pool2_term, coupon_rate):
-    spot_simulate_df = simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
-    home_price_df = simulate_homeprice(m, spot_simulate_df, current_principal, current_ltv)
-
-    # Calculate 10 yr rates
-    tenor_rate = calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, tenor)
-
-    v1 = wac-tenor_rate
-    v2 = v1.copy()*0.0
-    v2[(v2.index.month>=4)&(v2.index.month<=7)] = 1
-
-    smm_df = calc_hazard(gamma, p, beta, v1, v2)
-
-    price_df = np.vectorize(calc_cashflow, signature='(n),(n),(),(),(),(),(),(),(),(),(),(k)->(m)')(
-                            smm_df.T.values.astype(float), spot_simulate_df.T.values.astype(float),
-                            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
-                            Pool2_mwac, Pool2_age, Pool2_term, coupon_rate,Tranche_bal_arr)
-    price_df = pd.DataFrame(price_df, columns=bond_list)
-
-    return price_df, smm_df
+    return home_price_df1, home_price_df2
 
 
 # We need to pass in a default hazard function (parameterized), which takes an LTV parameter
@@ -236,16 +223,10 @@ def mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_ba
     # Adjust loan balance due to schedule and unscheduled principal payments
     # Construct LTV
 
-# fitted hazard parameters
-gamma=.1
-p=1.5
-beta=1.5
 
-def calc_def_hazard(gamma, p, beta, LTV, t):
-def_haz = lambda LTV, t: calc_def_hazard(gamma, p, beta, LTV, t)
     
 @njit
-def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz, hp_array, age):
+def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz, hp_array):
     """
     Fixed Rate Pool Cash Flow calculation. Modifies Pool_data ndarray in place
     
@@ -261,7 +242,7 @@ def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz, 
     for i in range(1,Pool_term+1): 
         # Calculate LTV_i
         LTV = Pool_data[i-1,4] / hp_array[i-1]
-        def_t = def_haz(LTV, age+i-1)
+        def_t = def_haz(LTV, Pool_age+i-1)
         
         # reduce balance by default
         Pool_data[i,5] = def_t * Pool_data[i-1,4]
@@ -278,7 +259,7 @@ def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz, 
     return 
 
 @njit
-def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def_haz, hp_array, age):
+def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def_haz, hp_array):
     """
     Fixed Rate Pool Cash Flow calculation. Modifies Pool_data ndarray in place
     
@@ -294,7 +275,7 @@ def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def
     for i in range(1,Pool_term+1): 
         # Calculate LTV_i
         LTV = Pool_data[i-1,4] / hp_array[i-1]
-        def_t = def_haz(LTV, age+i-1)
+        def_t = def_haz(LTV, Pool_age+i-1)
         
         # reduce balance by default
         Pool_data[i,5] = def_t * Pool_data[i-1,4]
@@ -310,16 +291,8 @@ def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def
         
     return 
 
-Tranche_CF_arr = np.zeros((10,241,5))
-# 0 PMT
-# 1 Interest
-# 2 Principal
-# 3 Balance
-# 4 defaulted balance
-# 5 Interest shortfall
-
 @njit
-def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig_bal, mat):
+def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig_bal):
     """
     Calculate Tranche cash flows in place (Tranche_CF_arr ndarray)
     
@@ -388,6 +361,120 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
     return 
 
 @njit
+def calc_bond_price(cf_bond, _r):
+    r = _r.copy()
+    #r = r.astype(float)
+    r = r[:cf_bond.shape[0]]
+
+    R = (cf_bond.sum(1)*(np.exp(r/24)-1))
+
+    r_cum = r.cumsum()
+
+    price = np.zeros(cf_bond.shape[1]+1)
+    for i in range(price.shape[0]-1):
+        price[i] = (cf_bond[:,i]/np.exp(r_cum/12)).sum()
+    price[i+1] = (R/np.exp(r_cum/12)).sum()
+
+    return price
+
+@njit
+def calc_cashflow(SMM_array, r, hpi_1, hpi_2, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+                  Pool2_sprd, Pool2_age, Pool2_term, sprd_arr, Tranche_bal_arr, orig_bal, def_haz):
+    """    
+    # Pool cash flows arrays
+    # 5 columns:
+    #0 PMT
+    0 PMT
+    1 Interest
+    2 Principal
+    3 pp CF
+    4 Balance
+    5 Default
+    ### Define Tranche CF arrays outside to pre-allocate
+    # define Tranche CF array, Tranche x time x (Principal, Interest, Balance)
+    # Tranche order: 'CG', 'VE', 'CM', 'GZ', 'TC', 'CZ', 'CA', 'CY'
+    # Tranche order:    0,    1,    2,    3,    4,    5,    6,    7
+    """
+    Tranche_CF_arr = np.zeros((10, 361, 5))
+    # 0 PMT
+    # 1 Interest
+    # 2 Principal
+    # 3 Balance
+    # 4 defaulted balance
+    # 5 Interest shortfall
+    
+    for i in range(10):
+        Tranche_CF_arr[i,0,2] = Tranche_bal_arr[i]
+        
+    Pool1_data = np.zeros((361, 6))
+    Pool2_data = np.zeros((361, 6))
+
+    Pool1_data[0, 4] = Pool1_bal
+    Pool2_data[0, 4] = Pool2_bal
+
+    FRM_pool_cf(Pool1_data, r, Pool1_mwac, Pool1_age, Pool1_term, SMM_array, def_haz, hpi_1)
+    ARM_pool_cf(Pool2_data, r, Pool2_sprd, Pool2_age, Pool2_term, SMM_array, def_haz, hpi_2)
+    
+    # Reproduce Principal CF Allocation (waterfall)
+    Total_pool_data = Pool1_data + Pool2_data
+    
+    # Calculate Cash flows
+    # redefine giant Tranche_DF
+    risky_tranche_CF_calc(Tranche_CF_arr, sprd_arr, Total_pool_data, r, orig_bal)
+    
+    CF_arr = np.zeros((361, 10))
+    for i in range(8):
+        CF_arr[:,i] = Tranche_CF_arr[i,:,1] + Tranche_CF_arr[i,:,2]
+
+    # Calculate Bond price
+    price = calc_bond_price(CF_arr[1:, :], r)
+    return price
+
+def mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, tenor, antithetic,
+            Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, sprd, Pool2_age, Pool2_term, coupon_rate, sprd_arr,
+            current_principal,current_ltv, orig_bal):
+    """
+    current_principal current_ltv array[2]
+    
+    gamma, p: 2D arrays for hazards. (FRM, ARM) x (prepay, default)
+    beta    : 2x2x2 array for covariate coefficients for hazards. 
+                (FRM, ARM) x (prepay, default) x ()
+                [0,:] is for prepay, [1,0] is for default (LTV)
+    """
+    
+    spot_simulate_df = lib.simulate_rate(m, theta_df, kappa, sigma, r0, antithetic)
+    hp_df1, hp_df2 = simulate_homeprice(m, spot_simulate_df, current_principal,current_ltv)
+    
+    # Calculate 10 yr rates
+    tenor_rate = lib_2.calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, tenor)
+
+    v1 = wac-tenor_rate
+    v2 = v1.copy()*0.0
+    v2[(v2.index.month>=5)&(v2.index.month<=8)] = 1
+
+    smm_df1 = lib_2.calc_hazard(gamma[0,0], p[0,0], beta[0,0,:], v1, v2) # prepay hazard
+    def_haz1 = lambda LTV, t: lib_2.calc_def_hazard(gamma[0,0,1], p[0,1], beta[0,1,0], LTV, t) # default hazard
+    smm_df2 = lib_2.calc_hazard(gamma[1,0], p[1,0], beta[1,1:], v1, v2) # prepay hazard
+    def_haz2 = lambda LTV, t: lib_2.calc_def_hazard(gamma[1,1], p[1], beta[1,1,0], LTV, t) # default hazard
+    
+    
+    # function definition
+    #def calc_cashflow(SMM_array, r, hpi1, hpi_2, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
+    #              Pool2_sprd, Pool2_age, Pool2_term, sprd_arr, Tranche_bal_arr, orig_bal, def_haz):
+
+    
+    price_df = np.vectorize(calc_cashflow, signature='(n),(n),(n),(n),(n),(),(),(),(),(),(),(),(k),(k),(),(),()->(m)')(
+                            smm_df1.T.values.astype(float), smm_df2.T.values.astype(float),
+                            spot_simulate_df.T.values.astype(float),hp_df1.T.values.astype(float), 
+                            hp_df2.T.values.astype(float),Pool1_bal, Pool2_bal, Pool1_mwac, 
+                            Pool1_age, Pool1_term, sprd, Pool2_age, Pool2_term, sprd_arr, 
+                            Tranche_bal_arr, orig_bal, def_haz1, def_haz2 )
+    price_df = pd.DataFrame(price_df, columns=bond_list)
+
+    return price_df, smm_df1, smm_df2
+
+
+@njit
 def cds_valuation(tranche_CF_arr, sprd_arr, rates_arr, mat):
     """
     Calculates CDS value along a rate path (and implicit HP path)
@@ -422,3 +509,5 @@ def cds_valuation(tranche_CF_arr, sprd_arr, rates_arr, mat):
     # Need Default allocation each month 
 # Calculate full payments, and Principal and Interest shortfall. Calculate fair payment
 # Too expensive. Counterparty risk
+
+

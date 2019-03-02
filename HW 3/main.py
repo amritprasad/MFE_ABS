@@ -237,10 +237,10 @@ res_frm_d, sol_frm_d, hessian_inv_frm_d = lib_3.fit_hazard(
 
 FRM_bal =  52416155
 ARM_bal = 226122657
-FRM_term = 354
-FRM_age = 6
-ARM_term = 354
-ARM_age = 6
+FRM_age = 45
+FRM_term = 360 - FRM_age
+ARM_age = 45
+ARM_term = 360 - ARM_age
 FRM_mwac = .07419/12
 ARM_sprd = .055/12
 
@@ -289,7 +289,7 @@ spreads=[
 ]
 
 # Fit hazards
-
+    
 # pool cash flow
     # Take interest rate path
     # Take home price paths
@@ -304,4 +304,18 @@ spreads=[
     # Defaults starts with 1) excess spread, 2) OC, 3) bottom layer
     #   Extra principal distribution
     # Assume existence of a residual piece, which gets excess spread payments
+
+m = 10000
+tenor = 120
+antithetic = True
+gamma = np.array([])
+p = np.array([])
+beta = np.array([ [], [] ])
+r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
+
+
+
+lib_3.mc_bond(m, theta_df, kappa, sigma, gamma, p, beta, r0, bond_list, Tranche_bal_arr, wac, 
+              tenor, antithetic,Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, sprd, 
+              Pool2_age, Pool2_term, coupon_rate, sprd_arr, current_principal,current_ltv, orig_bal)    
 
