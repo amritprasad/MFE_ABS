@@ -212,7 +212,7 @@ WEN WRITE THIS FUNCTION!
 @njit
 def calc_def_hazard(gamma, p, beta, LTV, t):
     part1 = (gamma*p)*(gamma*t)**(p-1)/(1+(gamma*t)**p)
-    part2 = beta[0]*LTV
+    part2 = np.exp(beta[0]*LTV)
     hazard_rate = part1*part2
     return hazard_rate
 

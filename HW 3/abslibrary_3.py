@@ -242,13 +242,14 @@ p=1.5
 beta=1.5
 
 def calc_def_hazard(gamma, p, beta, LTV, t):
+
 def_haz = lambda LTV, t: calc_def_hazard(gamma, p, beta, LTV, t)
-    
+
 @njit
 def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz):
     """
     Fixed Rate Pool Cash Flow calculation. Modifies Pool_data ndarray in place
-    
+
     Pool_data should be array with following 6 columns:
     0 PMT
     1 Interest
@@ -258,10 +259,10 @@ def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz):
     5 Default
 
     """
-    for i in range(1,Pool_term+1): 
+    for i in range(1,Pool_term+1):
         # Calculate LTV_i
         def_t = def_haz(LTV_i, i)
-        
+
         # reduce balance by default
         Pool_data[i,5] = default_arr[i] * Pool_data[i-1,4]
         Pool_data[i,4] = Pool_data[i-1,4]-Pool_data[i,5]
@@ -274,13 +275,13 @@ def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, def_haz):
         Pool_data[i,3] = prepay_arr[i] * (Pool_data[i-1,4] - Pool_data[i,2])
         Pool_data[i,4]  = np.maximum(Pool_data[i,4] - Pool_data[i,2] - Pool_data[i,3], 0)
 
-    return 
+    return
 
 @njit
 def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, default_arr):
     """
     Fixed Rate Pool Cash Flow calculation. Modifies Pool_data ndarray in place
-    
+
     Pool_data should be array with following 6 columns:
     0 PMT
     1 Interest
@@ -290,7 +291,7 @@ def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def
     5 Default
 
     """
-    for i in range(1,Pool_term+1): 
+    for i in range(1,Pool_term+1):
         Pool_data[i,5] = default_arr[i] * Pool_data[i-1,4]
         Pool_data[i,4] = Pool_data[i-1,4]-Pool_data[i,5]
         Pool_data[i,0] = lib.pmt(Pool_data[i,4], Pool_term-i+1, rates_arr[i-1] + sprd)
@@ -301,8 +302,8 @@ def ARM_pool_cf(Pool_data, rates_arr, sprd, Pool_age, Pool_term, prepay_arr, def
                                         else Pool_data[i,4])
         Pool_data[i,3] = prepay_arr[i] * (Pool_data[i-1,4] - Pool_data[i,2])
         Pool_data[i,4]  = np.maximum(Pool_data[i,4] - Pool_data[i,2] - Pool_data[i,3], 0)
-        
-    return 
+
+    return
 
 Tranche_CF_arr = np.zeros((10,241,5))
 # 0 PMT
@@ -316,9 +317,9 @@ Tranche_CF_arr = np.zeros((10,241,5))
 def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig_bal, mat):
     """
     Calculate Tranche cash flows in place (Tranche_CF_arr ndarray)
-    
+
     sprd_arr holds the spread over libor for each Tranche
-    
+
     Pool_CF_arr holds the aggregated pool cash flow data
     0 PMT
     1 Interest
@@ -328,64 +329,64 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
     5 Default
     """
     for i in range(1,360):
-        
+
         # Calculate planned tranche data
         tranche_interest=0
         tranche_bal=0
-        
+
         for j in range(tranche_CF_arr.shape[0]):
             tranche_interest = tranche_interest + tranche_CF_arr[j, i-1, 4] * (rates_arr[i-1]+sprd_arr[j])
             tranche_bal = tranche_bal + tranche_CF_arr[j,i-1,4]
-            
+
             # calculate planned Interest
             tranche_CF_arr[j, i, 1] = tranche_CF_arr[j, i-1, 4] * (rates_arr[i-1]+sprd_arr[j])
-                
+
         # Calculate extra principal distributions and prepayment
         excess_spread = np.maximum(pool_CF_arr[1,i] - tranche_interest, 0)
         OC = np.maximum(pool_CF_arr[4,i-1] - tranche_bal, 0)
         OC_target = np.maximum( np.minimum(0.062 * pool_CF_arr[4,i], 0.031 * orig_bal ), 3967158)
         epd = np.minimum(excess_spread, np.maximum(OC_target-OC, 0))
-        
-        
+
+
         # allocate principal (and unplanned principal) and interest
         available_princ = pool_CF_arr[i,2] + pool_CF_arr[i,3] + pool_CF_arr[i,5]*.4 + epd
         available_int = pool_CF_arr[i,1]
-        
+
         # compute cash flow shortfall, allocate planned principal and interest, allocate PPT
         for j in range(tranche_CF_arr.shape[0]):
-            
+
             # interest shortfall
             tranche_CF_arr[j, i, 5] = np.maximum( tranche_CF_arr[j, i, 1] - available_int, 0)
-            
+
             # interest allocation
             tranche_CF_arr[j, i, 1] = np.minimum( available_int, tranche_CF_arr[j, i, 1])
             available_int = np.maximum(available_int - tranche_CF_arr[j,i,1],0)
-            
+
             # principal
             tranche_CF_arr[j, i, 2] = np.minimum( available_princ, tranche_CF_arr[j, i-1, 4])
             available_princ = np.maximum(available_princ - tranche_CF_arr[j, i, 2], 0)
-            
+
             # reduce balance
             tranche_CF_arr[j, i, 4] = np.maximum(tranche_CF_arr[j, i-1, 4] - tranche_CF_arr[j, i, 2], 0)
-            
-        
+
+
         # allocate default
         # eat through overcollateralization
         default_total = pool_CF_arr[i,5] - np.maximum(pool_CF_arr[i,4] - tranche_CF_arr[:, i-1, 4].sum(), 0)
-        
+
         for j in reversed(range(tranche_CF_arr.shape[0])):
             default_amt = np.minimum( default_total, tranche_CF_arr[j, i, 4])
             tranche_CF_arr[j, i, 4] = np.maximum(tranche_CF_arr[j, i, 4] - default_amt, 0)
             default_total = default_total - default_amt
             tranche_CF_arr[j, i, 5] = default_amt
-            
-    return 
+
+    return
 
 @njit
 def cds_valuation(tranche_CF_arr, sprd_arr, rates_arr, mat):
     """
     Calculates CDS value along a rate path (and implicit HP path)
-    
+
     tranche_CF_arr
     # 0 PMT
     # 1 Interest
@@ -394,25 +395,25 @@ def cds_valuation(tranche_CF_arr, sprd_arr, rates_arr, mat):
     # 4 defaulted balance
     # 5 Interest shortfall
     """
-    
+
     for i in range(1,mat+1):
         # discount the default balance *.6
         # discount the interest cashflow shortfall
         pass
-    return 
+    return
 
 # CDS
 # 2 legs:
     # Fixed leg on changing notional (due to prepay)
-    # Floating leg: 
+    # Floating leg:
         # Default is 60% prepay
         # missing interest: Take defaulted running total, multiply by interest rate+sprd
     # add up, discount
 
 
-# Fixed coupon on changing notional (discount). 
+# Fixed coupon on changing notional (discount).
     # Calculate principal and interest payments (PMT) using floating interest rate.
     # Need Tranche balance each period
-    # Need Default allocation each month 
+    # Need Default allocation each month
 # Calculate full payments, and Principal and Interest shortfall. Calculate fair payment
 # Too expensive. Counterparty risk
