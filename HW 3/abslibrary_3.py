@@ -212,14 +212,6 @@ def simulate_homeprice(m, spot_simulate_array, current_principal,
     return home_price_array1, home_price_array2
 
 
-# We need to pass in a default hazard function (parameterized), which takes an LTV parameter
-# Pass in simulated HP index
-# for each time step:
-    # Calculate default based on previous period LTV, adjust current loan balance and home price
-    # Adjust loan balance due to schedule and unscheduled principal payments
-    # Construct LTV
-
-
 
 @njit
 def FRM_pool_cf(Pool_data, Pool_mwac, Pool_age, Pool_term, prepay_arr, sol_frm_d, hp_array):
@@ -303,6 +295,14 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
     3 pp CF
     4 Balance
     5 Default
+    
+    Tranche_CF_arr
+    # 0 PMT
+    # 1 Interest
+    # 2 Principal
+    # 3 Balance
+    # 4 defaulted balance
+    # 5 Interest shortfall
     """
     for i in range(1,360):
 
@@ -311,22 +311,22 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
         tranche_bal=0
 
         for j in range(tranche_CF_arr.shape[0]):
-            tranche_interest = tranche_interest + tranche_CF_arr[j, i-1, 4] * (rates_arr[i-1]+sprd_arr[j])
-            tranche_bal = tranche_bal + tranche_CF_arr[j,i-1,4]
+            tranche_interest = tranche_interest + tranche_CF_arr[j, i-1, 3] * (rates_arr[i-1]+sprd_arr[j])
+            tranche_bal = tranche_bal + tranche_CF_arr[j,i-1,3]
 
             # calculate planned Interest
-            tranche_CF_arr[j, i, 1] = tranche_CF_arr[j, i-1, 4] * (rates_arr[i-1]+sprd_arr[j])
+            tranche_CF_arr[j, i, 1] = tranche_CF_arr[j, i-1, 3] * (rates_arr[i-1]+sprd_arr[j])
 
         # Calculate extra principal distributions and prepayment
-        excess_spread = np.maximum(pool_CF_arr[1,i] - tranche_interest, 0)
-        OC = np.maximum(pool_CF_arr[4,i-1] - tranche_bal, 0)
-        OC_target = np.maximum( np.minimum(0.062 * pool_CF_arr[4,i], 0.031 * orig_bal ), 3967158)
+        excess_spread = np.maximum(pool_CF_arr[i, 1] - tranche_interest, 0)
+        OC = np.maximum(pool_CF_arr[i-1, 4] - tranche_bal, 0)
+        OC_target = np.maximum( np.minimum(0.062 * pool_CF_arr[ i, 4], 0.031 * orig_bal ), 3967158)
         epd = np.minimum(excess_spread, np.maximum(OC_target-OC, 0))
 
 
         # allocate principal (and unplanned principal) and interest
-        available_princ = pool_CF_arr[i,2] + pool_CF_arr[i,3] + pool_CF_arr[i,5]*.4 + epd
-        available_int = pool_CF_arr[i,1]
+        available_princ = pool_CF_arr[ i, 2] + pool_CF_arr[ i, 3] + pool_CF_arr[ i, 5]*.4 + epd
+        available_int = pool_CF_arr[ i, 1]
 
         # compute cash flow shortfall, allocate planned principal and interest, allocate PPT
         for j in range(tranche_CF_arr.shape[0]):
@@ -339,22 +339,22 @@ def risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, pool_CF_arr, rates_arr, orig
             available_int = np.maximum(available_int - tranche_CF_arr[j,i,1],0)
 
             # principal
-            tranche_CF_arr[j, i, 2] = np.minimum( available_princ, tranche_CF_arr[j, i-1, 4])
+            tranche_CF_arr[j, i, 2] = np.minimum( available_princ, tranche_CF_arr[j, i-1, 3])
             available_princ = np.maximum(available_princ - tranche_CF_arr[j, i, 2], 0)
 
             # reduce balance
-            tranche_CF_arr[j, i, 4] = np.maximum(tranche_CF_arr[j, i-1, 4] - tranche_CF_arr[j, i, 2], 0)
+            tranche_CF_arr[j, i, 3] = np.maximum(tranche_CF_arr[j, i-1, 3] - tranche_CF_arr[j, i, 2], 0)
 
 
         # allocate default
         # eat through overcollateralization
-        default_total = pool_CF_arr[i,5] - np.maximum(pool_CF_arr[i,4] - tranche_CF_arr[:, i-1, 4].sum(), 0)
+        default_total = pool_CF_arr[i,5] - np.maximum(pool_CF_arr[i,4] - tranche_CF_arr[:, i-1, 3].sum(), 0)
 
-        for j in np.array(range(tranche_CF_arr.shape[0]))[::-1]:
-            default_amt = np.minimum( default_total, tranche_CF_arr[j, i, 4])
-            tranche_CF_arr[j, i, 4] = np.maximum(tranche_CF_arr[j, i, 4] - default_amt, 0)
-            default_total = default_total - default_amt
-            tranche_CF_arr[j, i, 5] = default_amt
+        for k in range(tranche_CF_arr.shape[0]):
+            j = tranche_CF_arr.shape[0] - k - 1
+            tranche_CF_arr[j, i, 4] = np.minimum( default_total, tranche_CF_arr[j, i, 3])
+            tranche_CF_arr[j, i, 3] = np.maximum(tranche_CF_arr[j, i, 3] - tranche_CF_arr[j,i,4], 0)
+            default_total = default_total - tranche_CF_arr[j,i,4]
 
     return
 
@@ -364,20 +364,44 @@ def calc_bond_price(cf_bond, _r):
     #r = r.astype(float)
     r = r[:cf_bond.shape[0]]
 
-    R = (cf_bond.sum(1)*(np.exp(r/24)-1))
+    #R = (cf_bond.sum(1)*(np.exp(r/24)-1))
 
     r_cum = r.cumsum()
 
-    price = np.zeros(cf_bond.shape[1]+1)
+    price = np.zeros(cf_bond.shape[1])
     for i in range(price.shape[0]-1):
-        price[i] = (cf_bond[:,i]/np.exp(r_cum/12)).sum()
-    price[i+1] = (R/np.exp(r_cum/12)).sum()
+        price[i] = (cf_bond[:,i]/np.exp(r_cum)).sum()
+    #price[i+1] = (R/np.exp(r_cum/12)).sum()
 
     return price
 
+
+@njit
+def cds_val(tranche_CF_arr, rates_arr, cds_mat, m5_fixed_coupon, m2_fixed_coupon):
+    """
+    Calculates CDS value along a rate path (and implicit HP path)
+
+    tranche_CF_arr
+    # 0 PMT
+    # 1 Interest
+    # 2 Principal
+    # 3 Balance
+    # 4 defaulted balance
+    # 5 Interest shortfall
+    """
+
+    variable = (tranche_CF_arr[:,:,4] + tranche_CF_arr[:,:,5])
+    fixed_m2 = tranche_CF_arr[3,:,3] * m2_fixed_coupon
+    fixed_m5 = tranche_CF_arr[6,:,3] * m5_fixed_coupon
+    
+    variable[3,:] = variable[3,:] - fixed_m2
+    variable[6,:] = variable[3,:] - fixed_m5
+    return (variable/np.exp(rates_arr.cumsum()[:tranche_CF_arr.shape[1]])).sum(1)
+
+
 @njit
 def calc_cashflow(SMM_array_frm, SMM_array_arm, r, hpi_1, hpi_2, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
-                  Pool2_sprd, Pool2_age, Pool2_term, sprd_arr, Tranche_bal_arr, orig_bal, sol_frm_d, sol_arm_d):
+                  Pool2_sprd, Pool2_age, Pool2_term, sprd_arr, Tranche_bal_arr, orig_bal, sol_frm_d, sol_arm_d, cds_mat, m5_fixed_coupon, m2_fixed_coupon ):
     """
     # Pool cash flows arrays
     # 5 columns:
@@ -393,7 +417,7 @@ def calc_cashflow(SMM_array_frm, SMM_array_arm, r, hpi_1, hpi_2, Pool1_bal, Pool
     # Tranche order: 'CG', 'VE', 'CM', 'GZ', 'TC', 'CZ', 'CA', 'CY'
     # Tranche order:    0,    1,    2,    3,    4,    5,    6,    7
     """
-    Tranche_CF_arr = np.zeros((10, 361, 5))
+    tranche_CF_arr = np.zeros((10, 361, 6))
     # 0 PMT
     # 1 Interest
     # 2 Principal
@@ -402,7 +426,7 @@ def calc_cashflow(SMM_array_frm, SMM_array_arm, r, hpi_1, hpi_2, Pool1_bal, Pool
     # 5 Interest shortfall
 
     for i in range(10):
-        Tranche_CF_arr[i,0,2] = Tranche_bal_arr[i]
+        tranche_CF_arr[i,0,3] = Tranche_bal_arr[i]
 
     Pool1_data = np.zeros((361, 6))
     Pool2_data = np.zeros((361, 6))
@@ -420,19 +444,21 @@ def calc_cashflow(SMM_array_frm, SMM_array_arm, r, hpi_1, hpi_2, Pool1_bal, Pool
 
     # Calculate Cash flows
     # redefine giant Tranche_DF
-    risky_tranche_CF_calc(Tranche_CF_arr, sprd_arr, Total_pool_data, r, orig_bal)
+    risky_tranche_CF_calc(tranche_CF_arr, sprd_arr, Total_pool_data, r, orig_bal)
 
     CF_arr = np.zeros((361, 10))
     for i in range(8):
-        CF_arr[:,i] = Tranche_CF_arr[i,:,1] + Tranche_CF_arr[i,:,2]
+        CF_arr[:,i] = tranche_CF_arr[i,:,1] + tranche_CF_arr[i,:,2]
 
     # Calculate Bond price
     price = calc_bond_price(CF_arr[1:, :], r)
-    return price
+    cds_price = cds_val(tranche_CF_arr, r, cds_mat, m5_fixed_coupon, m2_fixed_coupon)
+    return price, cds_price
 
 def mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_d,
             r0, tenor, antithetic, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term, sprd,
-            Pool2_age, Pool2_term, sprd_arr,current_principal,current_ltv, orig_bal, Tranche_bal_arr):
+            Pool2_age, Pool2_term, sprd_arr,current_principal,current_ltv, orig_bal, Tranche_bal_arr,
+            cds_mat, m5_fixed_coupon, m2_fixed_coupon):
     """
     current_principal current_ltv array[2]
 
@@ -442,7 +468,7 @@ def mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_
                 [0,:] is for prepay, [1,0] is for default (LTV)
     """
 
-    spot_simulate_df = lib.simulate_rate(m, theta_df, kappa, sigma, r0, antithetic).astype(float)
+    spot_simulate_df = lib.simulate_rate(m, theta_df, kappa, sigma, r0, antithetic).astype(float)/12
     hp_array1, hp_array2 = simulate_homeprice(m, spot_simulate_df.values, current_principal,current_ltv)
 
     # Calculate 10 yr rates
@@ -456,62 +482,26 @@ def mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_
     v_arm_prepay2 = v_arm_prepay1.copy()*0.0
     v_arm_prepay2[(v_arm_prepay2.index.month>=5)&(v_arm_prepay2.index.month<=8)] = 1
 
-    smm_frm_df = lib_2.calc_hazard(sol_frm_p[0], sol_frm_p[1], sol_frm_p[2:], v_frm_prepay1, v_frm_prepay2, age=39).astype(float) # prepay hazard
-    smm_arm_df = lib_2.calc_hazard(sol_arm_p[0], sol_arm_p[1], sol_arm_p[2:], v_arm_prepay1, v_arm_prepay2, age=39).astype(float) # prepay hazard
-
-
-
+    smm_frm_df = lib_2.calc_hazard(sol_frm_p[0], sol_frm_p[1], sol_frm_p[2:], v_frm_prepay1, v_frm_prepay2, age=Pool1_age).astype(float) # prepay hazard
+    smm_arm_df = lib_2.calc_hazard(sol_arm_p[0], sol_arm_p[1], sol_arm_p[2:], v_arm_prepay1, v_arm_prepay2, age=Pool2_age).astype(float) # prepay hazard
+    
+    
     # function definition
     #def calc_cashflow(SMM_array_arm, SMM_array_frm, r, hpi_1, hpi_2, Pool1_bal, Pool2_bal, Pool1_mwac, Pool1_age, Pool1_term,
     #              Pool2_sprd, Pool2_age, Pool2_term, sprd_arr, Tranche_bal_arr, orig_bal, def_haz):
 
 
-    price_df = np.vectorize(calc_cashflow, signature='(n),(n),(n),(n),(n),(),(),(),(),(),(),(),(),(k),(k),(),(t),(t)->(m)')(
+    (price_df, cds_val_df) = np.vectorize(calc_cashflow, signature='(n),(n),(n),(n),(n),(),(),(),(),(),(),(),(),(k),(k),(),(t),(t),(),(),()->(m),(l)')(
                             smm_frm_df.T.values, smm_arm_df.T.values,
                             spot_simulate_df.T.values,hp_array1.T,
                             hp_array2.T,Pool1_bal, Pool2_bal, Pool1_mwac,
                             Pool1_age, Pool1_term, sprd, Pool2_age, Pool2_term, sprd_arr,
-                            Tranche_bal_arr, orig_bal, sol_frm_d, sol_arm_d)
+                            Tranche_bal_arr, orig_bal, sol_frm_d, sol_arm_d,
+                            cds_mat, m5_fixed_coupon, m2_fixed_coupon)
 
-    price_df = pd.DataFrame(price_df, columns=range(len(Tranche_bal_arr)))
+    price_df = pd.DataFrame(price_df, columns=range(Tranche_bal_arr.shape[0]))
+    cds_val_df = pd.DataFrame(cds_val_df, columns=range(Tranche_bal_arr.shape[0]))
+    return price_df, cds_val_df
 
-    return price_df
-
-
-@njit
-def cds_valuation(tranche_CF_arr, sprd_arr, rates_arr, mat):
-    """
-    Calculates CDS value along a rate path (and implicit HP path)
-
-    tranche_CF_arr
-    # 0 PMT
-    # 1 Interest
-    # 2 Principal
-    # 3 Balance
-    # 4 defaulted balance
-    # 5 Interest shortfall
-    """
-
-    for i in range(1,mat+1):
-        # discount the default balance *.6
-        # discount the interest cashflow shortfall
-        pass
-    return
-
-# CDS
-# 2 legs:
-    # Fixed leg on changing notional (due to prepay)
-    # Floating leg:
-        # Default is 60% prepay
-        # missing interest: Take defaulted running total, multiply by interest rate+sprd
-    # add up, discount
-
-
-# Fixed coupon on changing notional (discount).
-    # Calculate principal and interest payments (PMT) using floating interest rate.
-    # Need Tranche balance each period
-    # Need Default allocation each month
-# Calculate full payments, and Principal and Interest shortfall. Calculate fair payment
-# Too expensive. Counterparty risk
 
 

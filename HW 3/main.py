@@ -244,20 +244,6 @@ ARM_term = 360 - ARM_age
 FRM_mwac = .07419/12
 ARM_sprd = .055/12
 
-#A1
-#A2
-#A3
-#M1
-#M2
-#M3
-#M4
-#M5
-#M6
-#M7
-#M8
-#M9
-#M10
-
 orig_bal = 793431000
 curr_bal = FRM_bal+ARM_bal
 
@@ -288,34 +274,30 @@ spreads=[
 1.4
 ]
 
-# Fit hazards
-
-# pool cash flow
-    # Take interest rate path
-    # Take home price paths
-    # Compute hazards
-    # Compute principal/interest/prepay/default CF
-    # FRM
-    # ARM
-
-# Tranche cash flows
-    # Per period, allocate principal, interest, prepay, default
-    # Prepay starts at the top
-    # Defaults starts with 1) excess spread, 2) OC, 3) bottom layer
-    #   Extra principal distribution
-    # Assume existence of a residual piece, which gets excess spread payments
-
-m = 10000
+m = 10000 # mc steps
 tenor = 120
 antithetic = True
-r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25
-sprd_arr = np.array(spreads)
-Tranche_bal_arr = np.array(curr_Tranche_bal)
+r0 = np.log((zero_df.iloc[1, 1]/2+1)**(0.5))/0.25 #initial short rate
+sprd_arr = np.array(spreads)/100 # bps
+Tranche_bal_arr = np.array(curr_Tranche_bal)*1000 #thousands
 
 current_principal,current_ltv = np.array([52416155, 226122657]), np.array([0.856, 0.856])
+cds_mat=315
+m5_fixed_coupon=.0044/12
+m2_fixed_coupon=.0017/12
 
-price = lib_3.mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_d,
+# Compute prices
+price, cds_vals = lib_3.mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_d,
               r0, tenor, antithetic, FRM_bal, ARM_bal, FRM_mwac, FRM_age, FRM_term, ARM_sprd,
-              ARM_age, ARM_term, sprd_arr, current_principal,current_ltv, orig_bal, Tranche_bal_arr)
+              ARM_age, ARM_term, sprd_arr, current_principal,current_ltv, orig_bal, Tranche_bal_arr,
+              cds_mat, m5_fixed_coupon, m2_fixed_coupon)
 
-assert(False)
+# get bond price mean and std
+price.mean()
+price.mean()/Tranche_bal_arr
+price.std()/10000
+
+# cds as percent of par, not including premium
+cds_vals.mean()/Tranche_bal_arr
+cds_vals.std()/Tranche_bal_arr/10000
+
