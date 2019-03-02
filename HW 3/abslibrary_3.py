@@ -408,7 +408,7 @@ def calc_cashflow(SMM_array_frm, SMM_array_arm, r, hpi_1, hpi_2, Pool1_bal, Pool
     Pool1_data[0, 4] = Pool1_bal
     Pool2_data[0, 4] = Pool2_bal
 
-    FRM_pool_cf(Pool1_data, r, Pool1_mwac, Pool1_age, Pool1_term, SMM_array_frm, def_haz1, hpi_1)
+    FRM_pool_cf(Pool1_data, Pool1_mwac, Pool1_age, Pool1_term, SMM_array_frm, def_haz1, hpi_1)
     ARM_pool_cf(Pool2_data, r, Pool2_sprd, Pool2_age, Pool2_term, SMM_array_arm, def_haz2, hpi_2)
 
     # Reproduce Principal CF Allocation (waterfall)
