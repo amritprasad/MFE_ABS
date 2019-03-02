@@ -444,18 +444,18 @@ def mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_
     # Calculate 10 yr rates
     tenor_rate = lib_2.calc_tenor_rate(spot_simulate_df, kappa, sigma, theta_df, tenor)
 
-    v_frm_prepay1 = Pool1_mwac-tenor_rate
+    v_frm_prepay1 = Pool1_mwac*12-tenor_rate
     v_frm_prepay2 = v_frm_prepay1.copy()*0.0
     v_frm_prepay2[(v_frm_prepay2.index.month>=5)&(v_frm_prepay2.index.month<=8)] = 1
 
-    v_arm_prepay1 = sprd-tenor_rate+spot_simulate_df
+    v_arm_prepay1 = sprd*12-tenor_rate+spot_simulate_df
     v_arm_prepay2 = v_arm_prepay1.copy()*0.0
     v_arm_prepay2[(v_arm_prepay2.index.month>=5)&(v_arm_prepay2.index.month<=8)] = 1
 
     smm_frm_df = lib_2.calc_hazard(sol_frm_p[0], sol_frm_p[1], sol_frm_p[2:], v_frm_prepay1, v_frm_prepay2, age=39).astype(float) # prepay hazard
     smm_arm_df = lib_2.calc_hazard(sol_arm_p[0], sol_arm_p[1], sol_arm_p[2:], v_arm_prepay1, v_arm_prepay2, age=39).astype(float) # prepay hazard
-    def_haz1 = lambda LTV, t: lib_2.calc_def_hazard(sol_arm_d[0], sol_arm_d[1], sol_arm_d[2:], LTV, t) # default hazard
-    def_haz2 = lambda LTV, t: lib_2.calc_def_hazard(sol_frm_d[0], sol_frm_d[1], sol_frm_d[2:], LTV, t) # default hazard
+    def_haz1 = lambda LTV, t: lib_2.calc_def_hazard(sol_frm_d[0], sol_frm_d[1], sol_frm_d[2:], LTV, t) # default hazard
+    def_haz2 = lambda LTV, t: lib_2.calc_def_hazard(sol_arm_d[0], sol_arm_d[1], sol_arm_d[2:], LTV, t) # default hazard
 
 
     # function definition

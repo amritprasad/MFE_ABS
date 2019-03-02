@@ -314,8 +314,6 @@ Tranche_bal_arr = np.array(curr_Tranche_bal)
 
 current_principal,current_ltv = np.array([52416155, 226122657]), np.array([0.856, 0.856])
 
-wac_arm, wac_frm = 0.07419, 0.05500
-
 price = lib_3.mc_bond(m, theta_df, kappa, sigma, sol_arm_p, sol_arm_d, sol_frm_p, sol_frm_d,
               r0, tenor, antithetic, FRM_bal, ARM_bal, FRM_mwac, FRM_age, FRM_term, ARM_sprd,
               ARM_age, ARM_term, sprd_arr, current_principal,current_ltv, orig_bal, Tranche_bal_arr)
